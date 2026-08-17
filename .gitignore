@@ -40,3 +40,4 @@ yarn-error.log*
 /work/
 
 .pnpm-store/
+site-build.tar.gz
