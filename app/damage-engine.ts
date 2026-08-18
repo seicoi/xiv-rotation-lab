@@ -1,3 +1,8 @@
+import {AA_JOB_MOD,AA_USES_MAIN,baseDamage,clamp,expectedRoll,simulatedDotRoll,simulatedRoll,speedAdjustedTime} from "./calculation/damage-formula";
+import {DOT_ACTIONS,findDotAction,type DotAction} from "./calculation/dot-actions";
+import {GUARANTEED_ACTIONS,findGuaranteedAction,type GuaranteedAction} from "./calculation/guaranteed-actions";
+import {JOB_CONFIGS,type ActionRule,type BuffRule,type JobConfig} from "./calculation/job-configs";
+
 export type EngineStats = {
   level:number; weapon:number; autoAttack:number; aaInterval:number; main:number; aaMain:number;
   crit:number; dh:number; det:number; speed:number; tenacity:number; gcd:number;
@@ -11,13 +16,9 @@ export type EngineRow = {
   dotPotency?:number; dotDuration?:number; guaranteedCrit?:boolean; guaranteedDh?:boolean;
 };
 
-export type BuffRule = {
-  sourceActionId:number; duration:number; activationDelay?:number; damageMultiplier?:number;
-  haste?:number; mainStatPercent?:number; mainStatCap?:number; include?:number[]; exclude?:number[];
-};
 export type DotRule = { sourceActionId:number; key:string; potency:number; duration:number; tickInterval?:number };
-export type ActionRule = { guaranteedCrit?:boolean; guaranteedDh?:boolean; multiplier?:number };
-export type JobCalculationConfig = { buffs:BuffRule[]; dots:DotRule[]; actions:Record<number,ActionRule> };
+export type DeveloperCalculationOverrides={dots?:DotAction[];guaranteed?:GuaranteedAction[];jobs?:Record<string,JobConfig>};
+export type {ActionRule,BuffRule,JobConfig};
 
 export type EngineComputedRow<T extends EngineRow = EngineRow> = T & {
   prepare:number; damageEvent:number; nextGcd:number; nextOgcd:number; dps:number; simulatedDps:number;
@@ -25,104 +26,24 @@ export type EngineComputedRow<T extends EngineRow = EngineRow> = T & {
   aaDamage:number; dotDamage:number; dotDamageByAction:Record<string,number>;
 };
 
-const LEVEL_MODS:Record<number,{main:number;sub:number;div:number;attack:number;tankAttack:number}>={
-  70:{main:292,sub:364,div:900,attack:125,tankAttack:100},
-  80:{main:340,sub:380,div:1300,attack:165,tankAttack:132},
-  90:{main:390,sub:400,div:1900,attack:195,tankAttack:156},
-  100:{main:440,sub:420,div:2780,attack:237,tankAttack:190},
-};
-const JOB_MOD:Record<string,number>={PLD:100,WAR:105,DRK:105,GNB:100,WHM:115,SCH:115,AST:115,SGE:115,MNK:110,DRG:115,NIN:110,SAM:112,RPR:115,VPR:110,BRD:115,MCH:115,DNC:115,BLM:115,SMN:115,RDM:115,PCT:115};
-// Physical auto-attacks use the job's STR or DEX modifier, including healers and casters.
-// Values are the ClassJob modifiers published in the game data; NIN/VPR and physical ranged use DEX.
-const AA_JOB_MOD:Record<string,number>={PLD:100,WAR:105,DRK:105,GNB:100,WHM:55,SCH:90,AST:50,SGE:60,MNK:110,DRG:115,NIN:110,SAM:112,RPR:115,VPR:110,BRD:115,MCH:115,DNC:115,BLM:45,SMN:90,RDM:55,PCT:50};
-const AA_USES_MAIN=new Set(["PLD","WAR","DRK","GNB","MNK","DRG","NIN","SAM","RPR","VPR","BRD","MCH","DNC"]);
-const TRAIT:Record<string,number>={PLD:100,WAR:100,DRK:100,GNB:100,WHM:130,SCH:130,AST:130,SGE:130,MNK:100,DRG:100,NIN:100,SAM:100,RPR:100,VPR:100,BRD:120,MCH:120,DNC:120,BLM:130,SMN:130,RDM:130,PCT:130};
-const TANKS=new Set(["PLD","WAR","DRK","GNB"]);
-const JOBS=Object.keys(JOB_MOD);
-
-// Job-specific mechanics live in one registry. Entries are intentionally ID based so locale changes
-// never change calculation behavior. Buff, DoT and special-action data can be extended independently.
-export const JOB_CALCULATION_CONFIG:Record<string,JobCalculationConfig>=Object.fromEntries(
-  JOBS.map(job=>[job,{buffs:[],dots:[],actions:{}}]),
-);
-// Verified current PvE rule. Further job mechanics are added here by stable action ID,
-// including include/exclude lists for effects that do not apply to every action.
-JOB_CALCULATION_CONFIG.PLD.buffs.push({sourceActionId:20,duration:20,damageMultiplier:1.25});
-
 type ActiveBuff = BuffRule & { starts:number; ends:number };
 type DotInstance = DotRule & { sourceName:string; nextTick:number; ends:number; base:number; multipliers:number[]; crit:boolean; dh:boolean };
 type Downtime = { start:number; end:number };
 
-const clamp=(value:number,min:number,max:number)=>Math.max(min,Math.min(max,value));
 const applies=(buff:BuffRule,actionId:number|null)=>actionId!==null&&(!buff.include||buff.include.includes(actionId))&&(!buff.exclude||!buff.exclude.includes(actionId));
 const overlap=(end:number,interval:Downtime)=>Math.max(0,Math.min(end,interval.end)-Math.max(0,interval.start));
 const activeTime=(time:number,downtimes:Downtime[])=>Math.max(0,time-downtimes.reduce((sum,item)=>sum+overlap(time,item),0));
 const targetable=(time:number,downtimes:Downtime[])=>!downtimes.some(item=>time>=item.start&&time<item.end);
 const realTimeForActive=(target:number,downtimes:Downtime[])=>downtimes.slice().sort((a,b)=>a.start-b.start).reduce((time,item)=>item.start<=time?time+(item.end-item.start):time,target);
 
-function factors(stats:EngineStats,job:string,mainOverride=stats.main,jobModOverride=JOB_MOD[job]||100){
-  const mod=LEVEL_MODS[stats.level]||LEVEL_MODS[100],tank=TANKS.has(job),attackCoeff=tank?mod.tankAttack:mod.attack;
-  return {mod,
-    fAtk:Math.floor(attackCoeff*(mainOverride-mod.main)/mod.main)+100,
-    fDet:Math.floor(140*(stats.det-mod.main)/mod.div+1000),
-    fTnc:tank?Math.floor(112*(stats.tenacity-mod.sub)/mod.div+1000):1000,
-    fWd:Math.floor(mod.main*jobModOverride/1000)+stats.weapon,
-    fSpd:Math.floor(130*(stats.speed-mod.sub)/mod.div+1000),trait:TRAIT[job]||100,
-  };
-}
-
-function rates(stats:EngineStats){
-  const mod=(LEVEL_MODS[stats.level]||LEVEL_MODS[100]),delta=Math.floor(200*(stats.crit-mod.sub)/mod.div);
-  return {critRate:clamp((delta+50)/1000,0,1),critPower:1400+delta,dhRate:clamp(Math.floor(550*(stats.dh-mod.sub)/mod.div)/1000,0,1)};
-}
-
-function baseDamage(potency:number,stats:EngineStats,job:string,main:number,kind:"direct"|"auto"|"dot",guaranteedDh=false,jobModOverride?:number){
-  const f=factors(stats,job,main,jobModOverride),autoDh=guaranteedDh?Math.floor(140*(stats.dh-f.mod.sub)/f.mod.div):0;
-  let value=Math.floor(potency*f.fAtk*(f.fDet+autoDh)/100/1000);
-  value=Math.floor(value*f.fTnc/1000);
-  if(kind!=="direct")value=Math.floor(value*f.fSpd/1000);
-  const weaponFactor=kind==="auto"?Math.floor(f.fWd*(stats.aaInterval/3)):f.fWd;
-  value=Math.floor(value*weaponFactor/100);
-  value=Math.floor(value*f.trait/100);
-  return kind==="dot"?value+1:value;
-}
-
-const applyMultipliers=(base:number,multipliers:number[])=>multipliers.reduce((value,multiplier)=>Math.floor(value*multiplier),base);
-function expectedRoll(base:number,stats:EngineStats,guaranteedCrit=false,guaranteedDh=false,multipliers:number[]=[]){
-  const r=rates(stats),cr=guaranteedCrit?1:r.critRate,dh=guaranteedDh?1:r.dhRate;
-  const normal=applyMultipliers(base,multipliers),crit=applyMultipliers(Math.floor(base*r.critPower/1000),multipliers),direct=applyMultipliers(Math.floor(base*125/100),multipliers),both=applyMultipliers(Math.floor(Math.floor(base*r.critPower/1000)*125/100),multipliers);
-  return normal*(1-cr)*(1-dh)+crit*cr*(1-dh)+direct*(1-cr)*dh+both*cr*dh;
-}
-
 function hashSeed(rows:EngineRow[],stats:EngineStats,job:string){
   const source=`${job}|${JSON.stringify(stats)}|${rows.map(row=>`${row.actionId}:${row.time}:${row.potency}`).join("|")}`;
   let hash=2166136261;for(let i=0;i<source.length;i++){hash^=source.charCodeAt(i);hash=Math.imul(hash,16777619)}return hash>>>0||1;
 }
 function rng(seed:number){let state=seed>>>0;return()=>{state^=state<<13;state^=state>>>17;state^=state<<5;return(state>>>0)/4294967296}}
-function simulatedRoll(base:number,stats:EngineStats,random:()=>number,guaranteedCrit=false,guaranteedDh=false,multipliers:number[]=[]){
-  const r=rates(stats);let value=base;
-  if(guaranteedCrit||random()<r.critRate)value=Math.floor(value*r.critPower/1000);
-  if(guaranteedDh||random()<r.dhRate)value=Math.floor(value*125/100);
-  value=Math.floor(value*(950+Math.floor(random()*101))/1000);
-  return applyMultipliers(value,multipliers);
-}
-function simulatedDotRoll(base:number,stats:EngineStats,random:()=>number,guaranteedCrit=false,guaranteedDh=false,multipliers:number[]=[]){
-  const r=rates(stats);let value=Math.floor(base*(950+Math.floor(random()*101))/1000);
-  if(guaranteedCrit||random()<r.critRate)value=Math.floor(value*r.critPower/1000);
-  if(guaranteedDh||random()<r.dhRate)value=Math.floor(value*125/100);
-  return applyMultipliers(value,multipliers);
-}
-
-// Allagan Studies: base delay is converted to ms, Speed is applied, then the game floors to centiseconds.
-export function speedAdjustedTime(seconds:number,stats:EngineStats,haste=0){
-  const mod=LEVEL_MODS[stats.level]||LEVEL_MODS[100],milliseconds=Math.round(Math.max(0,seconds)*1000);
-  const speedTerm=1000+Math.ceil(130*(mod.sub-stats.speed)/mod.div);
-  const speedMilliseconds=Math.floor(milliseconds*speedTerm/1000);
-  return Math.floor(speedMilliseconds*(100-clamp(haste,0,99))/100/10)/100;
-}
-
-export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,job:string):EngineComputedRow<T>[] {
-  const config=JOB_CALCULATION_CONFIG[job]||{buffs:[],dots:[],actions:{}},iterations=clamp(Math.round(stats.simulationIterations||1000),1,10000),partyMain=Math.floor(stats.main*1.05),aaUsesMain=AA_USES_MAIN.has(job),partyAaMain=Math.floor((aaUsesMain?stats.main:stats.aaMain)*1.05);
+export {speedAdjustedTime};
+export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,job:string,overrides:DeveloperCalculationOverrides={}):EngineComputedRow<T>[] {
+  const config=(overrides.jobs||JOB_CONFIGS)[job]||{buffs:[],actions:{}},dotList=overrides.dots||DOT_ACTIONS,guaranteedList=overrides.guaranteed||GUARANTEED_ACTIONS,iterations=clamp(Math.round(stats.simulationIterations||1000),1,10000),partyMain=Math.floor(stats.main*1.05),aaUsesMain=AA_USES_MAIN.has(job),partyAaMain=Math.floor((aaUsesMain?stats.main:stats.aaMain)*1.05);
   const downtimes=rows.filter(row=>row.modifier==="downtime").map(row=>({start:row.time,end:row.time+Math.max(0,row.modifierValue)}));
   const random=rng(hashSeed(rows,stats,job));let nextGcd=0,nextOgcd=0,sumPotency=0,total=0,simTotal=0,previousAa=0,aaTotal=0,dotTotal=0;
   const activeBuffs:ActiveBuff[]=[],dots=new Map<string,DotInstance>(),dotBreakdown:Record<string,number>={};const output:EngineComputedRow<T>[]=[];
@@ -142,7 +63,7 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
       nextOgcd=Math.max(nextOgcd,row.time)+.7;
     }else if(row.actionId!==null){
       const buffs=activeBuffs.filter(buff=>prepare>=buff.starts&&prepare<buff.ends&&applies(buff,row.actionId));
-      const configuredRule=config.actions[row.actionId]||{},actionRule={...configuredRule,guaranteedCrit:configuredRule.guaranteedCrit??row.guaranteedCrit,guaranteedDh:configuredRule.guaranteedDh??row.guaranteedDh};
+      const configuredRule=(config.actions||{})[row.actionId]||{},listedGuaranteed=findGuaranteedAction(job,row.actionId,guaranteedList),actionRule={...configuredRule,guaranteedCrit:configuredRule.guaranteedCrit??listedGuaranteed?.crit??row.guaranteedCrit,guaranteedDh:configuredRule.guaranteedDh??listedGuaranteed?.dh??row.guaranteedDh};
       const multipliers=[actionRule.multiplier||1,...buffs.map(buff=>buff.damageMultiplier||1)].filter(value=>value!==1);
       const mainBonus=buffs.reduce((value,buff)=>value+Math.min(Math.floor(stats.main*(buff.mainStatPercent||0)),buff.mainStatCap??Infinity),0);
       const base=baseDamage(Math.max(0,row.potency),stats,job,partyMain+mainBonus,"direct",!!actionRule.guaranteedDh);
@@ -151,9 +72,9 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
       total+=rowDamage;simTotal+=rowSim;sumPotency+=Math.max(0,row.potency);
       const recast=speedAdjustedTime(row.recast||stats.gcd,stats,executionHaste);
       if(row.lane==="gcd")nextGcd=Math.max(nextGcd,row.time)+recast;nextOgcd=Math.max(nextOgcd,row.time)+.7;
-      const dotRule=config.dots.find(rule=>rule.sourceActionId===row.actionId)||(row.dotPotency&&row.dotDuration?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:row.dotPotency,duration:row.dotDuration}:undefined);
+      const listedDot=findDotAction(job,row.actionId,dotList),dotRule=listedDot?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:listedDot.potency,duration:listedDot.duration,tickInterval:listedDot.tickInterval}:(row.dotPotency&&row.dotDuration?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:row.dotPotency,duration:row.dotDuration}:undefined);
       if(dotRule){const tickInterval=dotRule.tickInterval||3,dotBase=baseDamage(dotRule.potency,stats,job,partyMain+mainBonus,"dot",!!actionRule.guaranteedDh),nextTick=(Math.floor(damageEvent/tickInterval)+1)*tickInterval;dots.set(dotRule.key,{...dotRule,sourceName:row.name,nextTick,ends:damageEvent+dotRule.duration,base:dotBase,multipliers,crit:!!actionRule.guaranteedCrit,dh:!!actionRule.guaranteedDh})}
-      for(const buff of config.buffs.filter(rule=>rule.sourceActionId===row.actionId)){const starts=damageEvent+(buff.activationDelay||0);activeBuffs.push({...buff,starts,ends:starts+buff.duration})}
+      for(const buff of (config.buffs||[]).filter(rule=>rule.sourceActionId===row.actionId)){const starts=damageEvent+(buff.activationDelay||0);activeBuffs.push({...buff,starts,ends:starts+buff.duration})}
     }
     const aaCount=damageEvent>=0&&stats.aaInterval>0?Math.floor(activeTime(damageEvent,downtimes)/stats.aaInterval)+1:0,newAa=Math.max(0,aaCount-previousAa);
     let aaDamage=0,aaSim=0;
