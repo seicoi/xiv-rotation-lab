@@ -17,7 +17,8 @@ export type EngineRow = {
 };
 
 export type DotRule = { sourceActionId:number; key:string; potency:number; duration:number; tickInterval?:number };
-export type DeveloperCalculationOverrides={dots?:DotAction[];guaranteed?:GuaranteedAction[];jobs?:Record<string,JobConfig>};
+export type ActionDataOverride={actionId:number;potency?:number;dotPotency?:number;dotDuration?:number;recast?:number;cast?:number;lane?:"gcd"|"ability";guaranteedCrit?:boolean;guaranteedDh?:boolean;evolve?:boolean};
+export type DeveloperCalculationOverrides={dots?:DotAction[];guaranteed?:GuaranteedAction[];jobs?:Record<string,JobConfig>;actions?:Record<string,ActionDataOverride[]>};
 export type {ActionRule,BuffRule,JobConfig};
 
 export type EngineComputedRow<T extends EngineRow = EngineRow> = T & {
@@ -63,7 +64,7 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
       nextOgcd=Math.max(nextOgcd,row.time)+.7;
     }else if(row.actionId!==null){
       const buffs=activeBuffs.filter(buff=>prepare>=buff.starts&&prepare<buff.ends&&applies(buff,row.actionId));
-      const configuredRule=(config.actions||{})[row.actionId]||{},listedGuaranteed=findGuaranteedAction(job,row.actionId,guaranteedList),actionRule={...configuredRule,guaranteedCrit:configuredRule.guaranteedCrit??listedGuaranteed?.crit??row.guaranteedCrit,guaranteedDh:configuredRule.guaranteedDh??listedGuaranteed?.dh??row.guaranteedDh};
+      const actionOverride=overrides.actions?.[job]?.find(item=>item.actionId===row.actionId),configuredRule=(config.actions||{})[row.actionId]||{},listedGuaranteed=findGuaranteedAction(job,row.actionId,guaranteedList),actionRule={...configuredRule,guaranteedCrit:actionOverride?.guaranteedCrit??configuredRule.guaranteedCrit??listedGuaranteed?.crit??row.guaranteedCrit,guaranteedDh:actionOverride?.guaranteedDh??configuredRule.guaranteedDh??listedGuaranteed?.dh??row.guaranteedDh};
       const multipliers=[actionRule.multiplier||1,...buffs.map(buff=>buff.damageMultiplier||1)].filter(value=>value!==1);
       const mainBonus=buffs.reduce((value,buff)=>value+Math.min(Math.floor(stats.main*(buff.mainStatPercent||0)),buff.mainStatCap??Infinity),0);
       const base=baseDamage(Math.max(0,row.potency),stats,job,partyMain+mainBonus,"direct",!!actionRule.guaranteedDh);
@@ -72,7 +73,7 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
       total+=rowDamage;simTotal+=rowSim;sumPotency+=Math.max(0,row.potency);
       const recast=speedAdjustedTime(row.recast||stats.gcd,stats,executionHaste);
       if(row.lane==="gcd")nextGcd=Math.max(nextGcd,row.time)+recast;nextOgcd=Math.max(nextOgcd,row.time)+.7;
-      const listedDot=findDotAction(job,row.actionId,dotList),dotRule=listedDot?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:listedDot.potency,duration:listedDot.duration,tickInterval:listedDot.tickInterval}:(row.dotPotency&&row.dotDuration?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:row.dotPotency,duration:row.dotDuration}:undefined);
+      const listedDot=findDotAction(job,row.actionId,dotList),dotRule=actionOverride?(actionOverride.dotPotency&&actionOverride.dotDuration?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:actionOverride.dotPotency,duration:actionOverride.dotDuration}:undefined):listedDot?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:listedDot.potency,duration:listedDot.duration,tickInterval:listedDot.tickInterval}:(row.dotPotency&&row.dotDuration?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:row.dotPotency,duration:row.dotDuration}:undefined);
       if(dotRule){const tickInterval=dotRule.tickInterval||3,dotBase=baseDamage(dotRule.potency,stats,job,partyMain+mainBonus,"dot",!!actionRule.guaranteedDh),nextTick=(Math.floor(damageEvent/tickInterval)+1)*tickInterval;dots.set(dotRule.key,{...dotRule,sourceName:row.name,nextTick,ends:damageEvent+dotRule.duration,base:dotBase,multipliers,crit:!!actionRule.guaranteedCrit,dh:!!actionRule.guaranteedDh})}
       for(const buff of (config.buffs||[]).filter(rule=>rule.sourceActionId===row.actionId)){const starts=damageEvent+(buff.activationDelay||0);activeBuffs.push({...buff,starts,ends:starts+buff.duration})}
     }
