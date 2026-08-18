@@ -4,8 +4,8 @@ export type FormulaStats={level:number;weapon:number;autoAttack:number;aaInterva
 export type DamageKind="direct"|"auto"|"dot";
 
 export const LEVEL_MODS:Record<number,{main:number;sub:number;div:number;attack:number;tankAttack:number}>={
-  70:{main:292,sub:364,div:900,attack:125,tankAttack:100},
-  80:{main:340,sub:380,div:1300,attack:165,tankAttack:132},
+  70:{main:292,sub:364,div:900,attack:125,tankAttack:105},
+  80:{main:340,sub:380,div:1300,attack:165,tankAttack:115},
   90:{main:390,sub:400,div:1900,attack:195,tankAttack:156},
   100:{main:440,sub:420,div:2780,attack:237,tankAttack:190},
 };
