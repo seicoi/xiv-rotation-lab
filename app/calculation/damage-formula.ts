@@ -1,6 +1,6 @@
 // Allagan Studies based scalar formulas. Keep flooring order explicit: changing the
 // order of Math.floor calls changes in-game damage and must be reviewed separately.
-export type FormulaStats={level:number;weapon:number;autoAttack:number;aaInterval:number;main:number;aaMain:number;crit:number;dh:number;det:number;speed:number;tenacity:number};
+export type FormulaStats={level:number;weapon:number;aaInterval:number;main:number;aaMain:number;crit:number;dh:number;det:number;speed:number;tenacity:number};
 export type DamageKind="direct"|"auto"|"dot";
 
 export const LEVEL_MODS:Record<number,{main:number;sub:number;div:number;attack:number;tankAttack:number}>={
@@ -11,6 +11,9 @@ export const LEVEL_MODS:Record<number,{main:number;sub:number;div:number;attack:
 };
 export const JOB_MOD:Record<string,number>={PLD:100,WAR:105,DRK:105,GNB:100,WHM:115,SCH:115,AST:115,SGE:115,MNK:110,DRG:115,NIN:110,SAM:112,RPR:115,VPR:110,BRD:115,MCH:115,DNC:115,BLM:115,SMN:115,RDM:115,PCT:115};
 export const AA_JOB_MOD:Record<string,number>={PLD:100,WAR:105,DRK:105,GNB:100,WHM:55,SCH:90,AST:50,SGE:60,MNK:110,DRG:115,NIN:110,SAM:112,RPR:115,VPR:110,BRD:115,MCH:115,DNC:115,BLM:45,SMN:90,RDM:55,PCT:50};
+// Allagan Studies: Attack is 110 potency, Shot (BRD/MCH) is 100 potency.
+export const AA_POTENCY:Record<string,number>={BRD:100,MCH:100};
+export const autoAttackPotency=(job:string)=>AA_POTENCY[job]||110;
 export const TRAIT:Record<string,number>={PLD:100,WAR:100,DRK:100,GNB:100,WHM:130,SCH:130,AST:130,SGE:130,MNK:100,DRG:100,NIN:100,SAM:100,RPR:100,VPR:100,BRD:120,MCH:120,DNC:120,BLM:130,SMN:130,RDM:130,PCT:130};
 export const TANKS=new Set(["PLD","WAR","DRK","GNB"]);
 export const AA_USES_MAIN=new Set(["PLD","WAR","DRK","GNB","MNK","DRG","NIN","SAM","RPR","VPR","BRD","MCH","DNC"]);
@@ -28,7 +31,8 @@ export function baseDamage(potency:number,stats:FormulaStats,job:string,main:num
   value=Math.floor(value*f.fTnc/1000);
   if(kind!=="direct")value=Math.floor(value*f.fSpd/1000);
   value=Math.floor(value*(kind==="auto"?Math.floor(f.fWd*(stats.aaInterval/3)):f.fWd)/100);
-  value=Math.floor(value*f.trait/100);
+  // Action Damage / Maim and Mend traits do not apply to auto-attacks.
+  value=Math.floor(value*(kind==="auto"?100:f.trait)/100);
   return kind==="dot"?value+1:value;
 }
 

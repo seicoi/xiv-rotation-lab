@@ -1,10 +1,10 @@
-import {AA_JOB_MOD,AA_USES_MAIN,baseDamage,clamp,expectedRoll,simulatedDotRoll,simulatedRoll,speedAdjustedTime} from "./calculation/damage-formula";
+import {AA_JOB_MOD,AA_USES_MAIN,autoAttackPotency,baseDamage,clamp,expectedRoll,simulatedDotRoll,simulatedRoll,speedAdjustedTime} from "./calculation/damage-formula";
 import {DOT_ACTIONS,findDotAction,type DotAction} from "./calculation/dot-actions";
 import {GUARANTEED_ACTIONS,findGuaranteedAction,type GuaranteedAction} from "./calculation/guaranteed-actions";
 import {JOB_CONFIGS,type ActionRule,type BuffRule,type JobConfig} from "./calculation/job-configs";
 
 export type EngineStats = {
-  level:number; weapon:number; autoAttack:number; aaInterval:number; main:number; aaMain:number;
+  level:number; weapon:number; aaInterval:number; main:number; aaMain:number;
   crit:number; dh:number; det:number; speed:number; tenacity:number; gcd:number;
   potionPercent:number; potionCap:number; simulationIterations:number;
 };
@@ -44,7 +44,7 @@ function hashSeed(rows:EngineRow[],stats:EngineStats,job:string){
 function rng(seed:number){let state=seed>>>0;return()=>{state^=state<<13;state^=state>>>17;state^=state<<5;return(state>>>0)/4294967296}}
 export {speedAdjustedTime};
 export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,job:string,overrides:DeveloperCalculationOverrides={}):EngineComputedRow<T>[] {
-  const config=(overrides.jobs||JOB_CONFIGS)[job]||{buffs:[],actions:{}},dotList=overrides.dots||DOT_ACTIONS,guaranteedList=overrides.guaranteed||GUARANTEED_ACTIONS,iterations=clamp(Math.round(stats.simulationIterations||1000),1,10000),partyMain=Math.floor(stats.main*1.05),aaUsesMain=AA_USES_MAIN.has(job),partyAaMain=Math.floor((aaUsesMain?stats.main:stats.aaMain)*1.05);
+  const config=(overrides.jobs||JOB_CONFIGS)[job]||{buffs:[],actions:{}},dotList=overrides.dots||DOT_ACTIONS,guaranteedList=overrides.guaranteed||GUARANTEED_ACTIONS,iterations=clamp(Math.round(stats.simulationIterations||1000),1,10000),partyMain=Math.floor(stats.main*1.05),aaUsesMain=AA_USES_MAIN.has(job),partyAaMain=Math.floor((aaUsesMain?stats.main:stats.aaMain)*1.05),aaPotency=autoAttackPotency(job);
   const downtimes=rows.filter(row=>row.modifier==="downtime").map(row=>({start:row.time,end:row.time+Math.max(0,row.modifierValue)}));
   const random=rng(hashSeed(rows,stats,job));let nextGcd=0,nextOgcd=0,sumPotency=0,total=0,simTotal=0,previousAa=0,aaTotal=0,dotTotal=0;
   const activeBuffs:ActiveBuff[]=[],dots=new Map<string,DotInstance>(),dotBreakdown:Record<string,number>={};const output:EngineComputedRow<T>[]=[];
@@ -82,11 +82,11 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
     for(let index=previousAa;index<aaCount;index++){
       const tickTime=realTimeForActive(index*stats.aaInterval,downtimes),buffs=activeBuffs.filter(buff=>tickTime>=buff.starts&&tickTime<buff.ends&&applies(buff,-1));
       const multipliers=buffs.map(buff=>buff.damageMultiplier||1).filter(value=>value!==1),mainBonus=aaUsesMain?buffs.reduce((value,buff)=>value+Math.min(Math.floor(stats.main*(buff.mainStatPercent||0)),buff.mainStatCap??Infinity),0):0;
-      const aaBase=baseDamage(Math.max(0,stats.autoAttack),stats,job,partyAaMain+mainBonus,"auto",false,AA_JOB_MOD[job]||100);aaDamage+=expectedRoll(aaBase,stats,false,false,multipliers);
+      const aaBase=baseDamage(aaPotency,stats,job,partyAaMain+mainBonus,"auto",false,AA_JOB_MOD[job]||100);aaDamage+=expectedRoll(aaBase,stats,false,false,multipliers);
       for(let i=0;i<iterations;i++)aaSim+=simulatedRoll(aaBase,stats,random,false,false,multipliers)/iterations;
     }
     previousAa=aaCount;
-    aaTotal+=aaDamage;total+=aaDamage;simTotal+=aaSim;sumPotency+=newAa*Math.max(0,stats.autoAttack);
+    aaTotal+=aaDamage;total+=aaDamage;simTotal+=aaSim;sumPotency+=newAa*aaPotency;
     output.push({...row,prepare,damageEvent,nextGcd,nextOgcd,dps:damageEvent>0?total/damageEvent:0,simulatedDps:damageEvent>0?simTotal/damageEvent:0,sumPotency,aaCount,totalDamage:total,simulatedDamage:simTotal,rowDamage,aaDamage:aaTotal,dotDamage:dotTotal,dotDamageByAction:{...dotBreakdown}});
   }
   return output;
