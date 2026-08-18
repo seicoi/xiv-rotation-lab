@@ -152,7 +152,7 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
       const recast=speedAdjustedTime(row.recast||stats.gcd,stats,executionHaste);
       if(row.lane==="gcd")nextGcd=Math.max(nextGcd,row.time)+recast;nextOgcd=Math.max(nextOgcd,row.time)+.7;
       const dotRule=config.dots.find(rule=>rule.sourceActionId===row.actionId)||(row.dotPotency&&row.dotDuration?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:row.dotPotency,duration:row.dotDuration}:undefined);
-      if(dotRule){const dotBase=baseDamage(dotRule.potency,stats,job,partyMain+mainBonus,"dot",!!actionRule.guaranteedDh);dots.set(dotRule.key,{...dotRule,sourceName:row.name,nextTick:damageEvent+(dotRule.tickInterval||3),ends:damageEvent+dotRule.duration,base:dotBase,multipliers,crit:!!actionRule.guaranteedCrit,dh:!!actionRule.guaranteedDh})}
+      if(dotRule){const tickInterval=dotRule.tickInterval||3,dotBase=baseDamage(dotRule.potency,stats,job,partyMain+mainBonus,"dot",!!actionRule.guaranteedDh),nextTick=(Math.floor(damageEvent/tickInterval)+1)*tickInterval;dots.set(dotRule.key,{...dotRule,sourceName:row.name,nextTick,ends:damageEvent+dotRule.duration,base:dotBase,multipliers,crit:!!actionRule.guaranteedCrit,dh:!!actionRule.guaranteedDh})}
       for(const buff of config.buffs.filter(rule=>rule.sourceActionId===row.actionId)){const starts=damageEvent+(buff.activationDelay||0);activeBuffs.push({...buff,starts,ends:starts+buff.duration})}
     }
     const aaCount=damageEvent>=0&&stats.aaInterval>0?Math.floor(activeTime(damageEvent,downtimes)/stats.aaInterval)+1:0,newAa=Math.max(0,aaCount-previousAa);
