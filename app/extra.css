@@ -19,3 +19,6 @@
 @media(max-width:850px){.analysis-page{margin-left:16px;margin-right:16px}.comparison-grid{grid-template-columns:1fr}}
 .timeline-table{min-width:1640px}
 .tabs .sheet-tab .tab-rename{padding:6px 3px 6px 7px;color:#69726a;font-size:11px}.tabs .sheet-tab .tab-rename:hover{color:#78cfff;background:#172126}.rename-modal label{display:flex;flex-direction:column;gap:8px;color:var(--muted);font:9px monospace}.rename-modal input{width:100%;padding:11px;border:1px solid #465047;background:#0d110e;color:var(--ink);font-size:13px}.rename-modal input:focus{outline:1px solid var(--green)}
+.action-placeholder{display:grid;place-items:center;width:39px;height:39px;flex:0 0 39px;border-radius:4px;background:#2b342b;color:var(--green);font-style:normal}
+.simulation-settings{display:flex;align-items:center;justify-content:space-between;gap:18px}.simulation-settings h2{margin:3px 0 0}.simulation-settings input{width:180px;padding:10px;border:1px solid #3b443c;background:#0d100e;color:var(--ink);font:12px monospace}
+@media(max-width:560px){.simulation-settings{align-items:stretch;flex-direction:column}.simulation-settings input{width:100%}}
