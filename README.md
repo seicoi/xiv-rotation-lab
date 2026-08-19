@@ -138,6 +138,7 @@ time,actionId,actionName,lane,boss
 - DoT／非DoT
 - 確定CRIT
 - 確定DH
+- ペット／分身補正
 - Reborn／Evolve
 
 上書き内容はローカル保存されます。「このジョブを初期値に戻す」でジョブ単位に解除できます。

@@ -36,10 +36,11 @@ test("server-renders XIV Rotation Lab", async () => {
 });
 
 test("keeps the Allagan Studies damage and timing invariants explicit", async () => {
-  const [formula, engine, jobs, page, actionRoute] = await Promise.all([
+  const [formula, engine, jobs, pets, page, actionRoute] = await Promise.all([
     readFile(new URL("../app/calculation/damage-formula.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/damage-engine.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/calculation/job-configs.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/calculation/pet-configs.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/actions/route.ts", import.meta.url), "utf8"),
   ]);
@@ -88,4 +89,13 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   // English descriptions use "a potency of 220" while Japanese and some
   // secondary values use a colon. Match the direct value before combo values.
   assert.match(actionRoute, /potency\\s\+of/);
+
+  // Published 5.x pet coefficients remain explicit and level-scoped.
+  assert.match(pets, /SMN:.*hiddenTraitMultiplier:\.8.*attackCoefficientByLevel:\{80:180\}/s);
+  assert.match(pets, /SCH:.*hiddenTraitMultiplier:\.67.*coefficient:106,denominator:304/s);
+  assert.match(pets, /DRK:.*jobModifier:100.*useNonTankAttack:true/s);
+  assert.match(pets, /AST:.*hiddenTraitMultiplier:1\.04/s);
+  assert.match(engine, /petCorrection:actionOverride\?\.petCorrection\?\?configuredRule\.petCorrection/);
+  assert.match(engine, /actionRule\.petCorrection\?findPetCorrectionProfile\(job\)/);
+  assert.match(page, /ペット／分身補正/);
 });

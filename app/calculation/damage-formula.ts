@@ -2,6 +2,7 @@
 // order of Math.floor calls changes in-game damage and must be reviewed separately.
 export type FormulaStats={level:number;weapon:number;aaInterval:number;main:number;aaMain:number;crit:number;dh:number;det:number;speed:number;tenacity:number};
 export type DamageKind="direct"|"auto"|"dot";
+export type DamageFormulaOverrides={jobMod?:number;attackCoefficient?:number;trait?:number;postTraitMultiplier?:number};
 
 export const LEVEL_MODS:Record<number,{main:number;sub:number;div:number;attack:number;tankAttack:number}>={
   70:{main:292,sub:364,div:900,attack:125,tankAttack:105},
@@ -19,20 +20,21 @@ export const TANKS=new Set(["PLD","WAR","DRK","GNB"]);
 export const AA_USES_MAIN=new Set(["PLD","WAR","DRK","GNB","MNK","DRG","NIN","SAM","RPR","VPR","BRD","MCH","DNC"]);
 
 export const clamp=(value:number,min:number,max:number)=>Math.max(min,Math.min(max,value));
-function factors(stats:FormulaStats,job:string,mainOverride=stats.main,jobModOverride=JOB_MOD[job]||100){
-  const mod=LEVEL_MODS[stats.level]||LEVEL_MODS[100],tank=TANKS.has(job),attackCoeff=tank?mod.tankAttack:mod.attack;
-  return{mod,fAtk:Math.floor(attackCoeff*(mainOverride-mod.main)/mod.main)+100,fDet:Math.floor(140*(stats.det-mod.main)/mod.div+1000),fTnc:tank?Math.floor(112*(stats.tenacity-mod.sub)/mod.div+1000):1000,fWd:Math.floor(mod.main*jobModOverride/1000)+stats.weapon,fSpd:Math.floor(130*(stats.speed-mod.sub)/mod.div+1000),trait:TRAIT[job]||100};
+function factors(stats:FormulaStats,job:string,mainOverride=stats.main,overrides:DamageFormulaOverrides={}){
+  const mod=LEVEL_MODS[stats.level]||LEVEL_MODS[100],tank=TANKS.has(job),attackCoeff=overrides.attackCoefficient??(tank?mod.tankAttack:mod.attack),jobMod=overrides.jobMod??JOB_MOD[job]??100;
+  return{mod,fAtk:Math.floor(attackCoeff*(mainOverride-mod.main)/mod.main)+100,fDet:Math.floor(140*(stats.det-mod.main)/mod.div+1000),fTnc:tank?Math.floor(112*(stats.tenacity-mod.sub)/mod.div+1000):1000,fWd:Math.floor(mod.main*jobMod/1000)+stats.weapon,fSpd:Math.floor(130*(stats.speed-mod.sub)/mod.div+1000),trait:overrides.trait??TRAIT[job]??100};
 }
 function rates(stats:FormulaStats){const mod=LEVEL_MODS[stats.level]||LEVEL_MODS[100],delta=Math.floor(200*(stats.crit-mod.sub)/mod.div);return{critRate:clamp((delta+50)/1000,0,1),critPower:1400+delta,dhRate:clamp(Math.floor(550*(stats.dh-mod.sub)/mod.div)/1000,0,1)}}
 
-export function baseDamage(potency:number,stats:FormulaStats,job:string,main:number,kind:DamageKind,guaranteedDh=false,jobModOverride?:number){
-  const f=factors(stats,job,main,jobModOverride),autoDh=guaranteedDh?Math.floor(140*(stats.dh-f.mod.sub)/f.mod.div):0;
+export function baseDamage(potency:number,stats:FormulaStats,job:string,main:number,kind:DamageKind,guaranteedDh=false,overrides:DamageFormulaOverrides={}){
+  const f=factors(stats,job,main,overrides),autoDh=guaranteedDh?Math.floor(140*(stats.dh-f.mod.sub)/f.mod.div):0;
   let value=Math.floor(potency*f.fAtk*(f.fDet+autoDh)/100/1000);
   value=Math.floor(value*f.fTnc/1000);
   if(kind!=="direct")value=Math.floor(value*f.fSpd/1000);
   value=Math.floor(value*(kind==="auto"?Math.floor(f.fWd*(stats.aaInterval/3)):f.fWd)/100);
   // Action Damage / Maim and Mend traits do not apply to auto-attacks.
   value=Math.floor(value*(kind==="auto"?100:f.trait)/100);
+  if(kind!=="auto"&&overrides.postTraitMultiplier!==undefined)value=Math.floor(value*overrides.postTraitMultiplier);
   if(kind==="auto")return Math.max(1,value);
   return kind==="dot"?value+1:value;
 }
