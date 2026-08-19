@@ -1,100 +1,178 @@
-# vinext-starter
+# XIV Rotation Lab
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+FFXIVのアクションタイムラインを組み、ステータスを基に期待値DPSとシミュレーションDPSを比較するWebツールです。
 
-## Prerequisites
+公開版: [XIV Rotation Lab](https://xiv-rotation-lab.suzunf5w.chatgpt.site)
 
-- Node.js `>=22.13.0`
+> [!NOTE]
+> 本ツールは非公式のファンメイドツールです。ゲーム内の最終的な結果を保証するものではありません。
 
-## Quick Start
+## 基本的な使い方
+
+### 1. ジョブとレベルを選ぶ
+
+画面上部でジョブとレベルを選択します。レベルは70・80・90・100に対応しています。
+
+ジョブごとにシートが分かれているため、ジョブを切り替えても別ジョブのアクションが混在することはありません。
+
+### 2. ステータスを入力する
+
+「ステータス」タブで、ゲーム内のキャラクター情報や武器情報を入力します。
+
+- 武器基本性能
+- メインステータス
+- クリティカル
+- ダイレクトヒット
+- 意思力
+- スキルスピード／スペルスピード
+- 不屈
+- AA用STR／DEX
+- AA間隔
+- 薬の上昇率と上限
+
+AA間隔は武器に表示されている値を入力してください。レベルシンク時は、シンク後のステータスを入力します。
+
+「現在値を複製」で装備セットを追加すると、複数のステータス構成を比較できます。
+
+### 3. アクションを配置する
+
+「タイムライン」タブ左側のアクションパレットから、使用する順番にアクションを選択します。
+
+アクションは次の条件で絞り込めます。
+
+- ダメージあり
+- ダメージなし
+- GCD
+- アビリティ
+- カスタム（お気に入り）
+
+星印を押すとカスタム一覧へ登録できます。カスタム一覧ではドラッグ＆ドロップで並び替えられます。
+
+GCDとアビリティは別列へ配置され、次に使用可能になる時刻が自動計算されます。
+
+### 4. 時間を調整する
+
+必要に応じて次の修飾子を使用します。
+
+| 修飾子 | 用途 |
+| --- | --- |
+| `PRE` | 次のアクションを指定秒数だけ前倒しして配置します。開幕前行動などに使用します。 |
+| `DELAY` | 指定した時間だけ次のGCD／アビリティを遅らせます。 |
+| `DOWNTIME` | 対象不在や強制移動など、攻撃できない時間を挿入します。期間中はAAとDoTダメージも停止します。 |
+| 強化薬 | アクションパレットのアビリティ一覧から配置します。ステータスで設定した薬効果を適用します。 |
+
+時刻は小数第3位まで表示します。GCDはスピード計算後に小数第2位へ切り捨て、内部タイムラインではGCD税として0.005秒を加算します。アビリティ硬直は0.675秒です。
+
+### 5. 計算結果を確認する
+
+タイムラインでは各行について、主に次の情報を確認できます。
+
+| 項目 | 内容 |
+| --- | --- |
+| 番号／時刻 | アクションの実行時刻 |
+| GCD／oGCD | 配置されたアクション |
+| 威力 | アクションデータから取得した威力 |
+| バフ参照 | ダメージ計算でバフを参照する時刻 |
+| NEXT GCD／NEXT oGCD | 次に操作できる時刻 |
+| DPS | 乱数を1.0に固定した期待値DPS |
+| シミュDPS | ダメージ乱数とCrit／DH抽選を含む反復平均 |
+| SUM DAMAGE | その時点までの累計ダメージ |
+| 累計威力 | その時点までの累計威力 |
+| AA | 発生したオートアタック回数 |
+| ボス | 任意のボスアクション名 |
+
+「ボスタイムライン」のチェックを外すと、ボス列を非表示にできます。ボスアクションが未入力の行は空欄になります。
+
+## シートの管理
+
+右上の`＋`で比較用シートを追加できます。
+
+- シート名の変更
+- 削除確認ダイアログ付きのシート削除
+- ジョブ単位のブラウザ自動保存
+- JSON形式でのエクスポート／インポート
+
+データは現在のブラウザ内へ保存されます。別の端末やブラウザへ移す場合は、シートをJSONでエクスポートしてください。ブラウザのサイトデータを削除すると、自動保存された内容も失われます。
+
+## タイムラインのインポート
+
+「インポート」から、JSONファイルまたはCSV／TSV・クリップボードのデータを読み込めます。
+
+タイムライン用CSVでは次の列名を使用できます。
+
+```csv
+time,actionId,actionName,lane,boss
+0,9,ファストブレード,gcd,
+2.505,15,ライオットソード,gcd,ボスアクション名
+```
+
+- `time`: 秒単位の時刻
+- `actionId`: アクションID
+- `actionName`: アクション名
+- `lane`: `gcd`、`ability`または`ogcd`
+- `boss`: 同時刻のボスアクション名
+
+アクションのみ、ボスのみ、または両方を読み込めます。名称またはIDが現在のジョブのアクションデータと一致すると、威力・アイコン・GCD区分などが補完されます。
+
+## 詳細タブ
+
+「詳細」タブでは次の情報を確認できます。
+
+- アクションごとの使用回数・累計威力・合計ダメージ・構成比
+- シートごとのDPS比較
+- 現在のアクションデータとシート保存時データの比較
+- 装備セットごとのDPS・合計ダメージ比較
+- シミュレーション反復回数の設定
+
+## データベースタブ
+
+「データベース」タブでは、現在ロードしているジョブのアクションと計算情報を確認できます。
+
+開発者オプションを有効にすると、ブラウザ内の上書きデータとして次の項目を調整できます。
+
+- 威力
+- DoT威力
+- クールダウン
+- キャスト時間
+- GCD／アビリティ
+- DoT／非DoT
+- 確定CRIT
+- 確定DH
+- Reborn／Evolve
+
+上書き内容はローカル保存されます。「このジョブを初期値に戻す」でジョブ単位に解除できます。
+
+## 計算について
+
+ダメージ式と各段階の切り捨ては、[Allagan Studies](https://www.akhmorning.com/allagan-studies/)の検証情報を基準にしています。
+
+- 期待値DPSではダメージ乱数を1.0に固定
+- シミュDPSでは0.95～1.05のダメージ乱数とCrit／DH抽選を使用
+- バフは詠唱完了時、無詠唱アクションは実行時に参照
+- DoTは付与時のバフをスナップショットし、3秒周期で処理
+- AAは武器間隔とジョブ別補正を使用し、STR／DEXを参照
+- ジョブ固有の常時ヘイスト、時間制ヘイスト、スタック制ヘイストに対応
+
+計算ロジックやジョブ固有設定は、確認・修正しやすいように用途別ファイルへ分離しています。
+
+## ローカル開発
+
+### 必要環境
+
+- Node.js 22.13.0以上
+
+### 起動
 
 ```bash
 npm install
 npm run dev
-npm run build
 ```
 
-This starter does not use `wrangler.jsonc`.
+### 検証
 
-## Included Shape
-
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
-
-## Workspace Auth Headers
-
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
-
-The user ID is stable for the same user on the same Site and different across Sites. Email and name are intended for display or contact purposes.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```bash
+npm run lint
+npm test
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
-
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
-
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+主な実装は`app/`、計算式とジョブ別データは`app/calculation/`にあります。
