@@ -32,6 +32,7 @@ const DEFAULT_DEVELOPER_CONFIG:Required<DeveloperCalculationOverrides>=JSON.pars
 const STAT_LABELS:Record<keyof Stats,string>={level:"レベル",weapon:"武器基本性能",aaInterval:"AA間隔（秒）",aaSpeed:"AA用スキルスピード",main:"メインステータス",aaMain:"AA用 STR / DEX",crit:"クリティカル",dh:"ダイレクトヒット",det:"意思力",speed:"アクション用スキル・スペルスピード",tenacity:"不屈",gcd:"基準GCD",potionPercent:"薬の上昇率（%）",potionCap:"薬の上昇上限",simulationIterations:"シミュレーション回数"};
 const STAT_LABELS_EN:Record<keyof Stats,string>={level:"Level",weapon:"Weapon damage",aaInterval:"Auto-attack delay (sec)",aaSpeed:"AA Skill Speed",main:"Main attribute",aaMain:"AA STR / DEX",crit:"Critical Hit",dh:"Direct Hit",det:"Determination",speed:"Action Skill / Spell Speed",tenacity:"Tenacity",gcd:"Base GCD",potionPercent:"Potion increase (%)",potionCap:"Potion increase cap",simulationIterations:"Simulation iterations"};
 const newSheet=(job:string,index=1):Sheet=>({id:crypto.randomUUID(),name:index===1?"本番回し":`比較案 ${index}`,job,rows:[]});
+const STATIC_ACTION_DATA_BASE=process.env.NEXT_PUBLIC_ACTION_DATA_BASE?.replace(/\/$/,"")||"";
 const iconUrl=(path:string)=>path?`https://v2.xivapi.com/api/asset?path=${encodeURIComponent(path)}&format=png`:"";
 const timeText=(n:number)=>{const sign=n<0?"-":"",milliseconds=Math.round(Math.abs(n)*1000),minutes=Math.floor(milliseconds/60000),seconds=milliseconds%60000/1000;return `${sign}${String(minutes).padStart(2,"0")}:${seconds.toFixed(3).padStart(6,"0")}`};
 const decimal=(n:number)=>Number.isFinite(n)?n.toFixed(3).replace(/0+$/,"").replace(/\.$/,""):"0";
@@ -63,7 +64,7 @@ export default function Home(){
   useEffect(()=>{if(!hydrated.current)return;const t=setTimeout(()=>{localStorage.setItem("xiv-rotation-lab-v5",JSON.stringify({sheets,active,job,stats,locale,gearSets,activeGearSet,developerConfig}));setSaved(true);setTimeout(()=>setSaved(false),700)},250);return()=>clearTimeout(t)},[sheets,active,job,stats,locale,gearSets,activeGearSet,developerConfig]);
   // Fetch state belongs to this external synchronization effect.
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(()=>{const key=`${job}:${locale}`;if(Object.prototype.hasOwnProperty.call(catalogs,key))return;setLoading(true);setLoadError("");fetch(`/api/actions?schema=2&job=${job}&level=100&language=${locale}`).then(async r=>{const data=await r.json();if(!r.ok)throw new Error("action data unavailable");return data}).then(data=>setCatalogs(v=>({...v,[key]:data.actions||[]}))).catch(()=>setLoadError(TEXT[locale].loadFailed)).finally(()=>setLoading(false))},[job,locale,catalogs]);
+  useEffect(()=>{const key=`${job}:${locale}`;if(Object.prototype.hasOwnProperty.call(catalogs,key))return;const source=STATIC_ACTION_DATA_BASE?`${STATIC_ACTION_DATA_BASE}/${locale}/${job}.json`:`/api/actions?schema=2&job=${job}&level=100&language=${locale}`;setLoading(true);setLoadError("");fetch(source).then(async r=>{const data=await r.json();if(!r.ok)throw new Error("action data unavailable");return data}).then(data=>setCatalogs(v=>({...v,[key]:data.actions||[]}))).catch(()=>setLoadError(TEXT[locale].loadFailed)).finally(()=>setLoading(false))},[job,locale,catalogs]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(()=>{if(importOpen||!logImportEnabled)return;setLogImportEnabled(false);if(importKind==="fflogs")setImportKind("sheet")},[importOpen,logImportEnabled,importKind]);
 

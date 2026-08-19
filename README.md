@@ -2,7 +2,7 @@
 
 FFXIVのアクションタイムラインを組み、ステータスを基に期待値DPSとシミュレーションDPSを比較するWebツールです。
 
-公開版: [XIV Rotation Lab](https://xiv-rotation-lab.suzunf5w.chatgpt.site)
+公開版: [XIV Rotation Lab](https://seicoi.github.io/xiv-rotation-lab/)
 
 > [!NOTE]
 > 本ツールは非公式のファンメイドツールです。ゲーム内の最終的な結果を保証するものではありません。

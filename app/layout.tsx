@@ -1,35 +1,27 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./extra.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const pagesBasePath = (process.env.PAGES_BASE_PATH || "").replace(/\/$/, "");
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.PAGES_ORIGIN || "http://localhost:3000"),
   title: "XIV Rotation Lab",
   description: "FFXIVのローテーションを組み、期待値と実戦DPSを比較するシミュレーター。",
   openGraph: {
     title: "XIV Rotation Lab",
     description: "FFXIVのローテーションを組み、期待値と実戦DPSを比較するシミュレーター。",
-    images: ["/og.png"],
+    images: [`${pagesBasePath}/og.png`],
   },
   twitter: {
     card: "summary_large_image",
     title: "XIV Rotation Lab",
     description: "FFXIV DPS Simulator",
-    images: ["/og.png"],
+    images: [`${pagesBasePath}/og.png`],
   },
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: `${pagesBasePath}/favicon.svg`,
+    shortcut: `${pagesBasePath}/favicon.svg`,
   },
 };
 
@@ -40,9 +32,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className="antialiased">
         {children}
       </body>
     </html>
