@@ -93,12 +93,13 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   // Post-stat-squish pet ratios stay separate from the historical 5.x values.
   assert.match(pets, /DRK:.*numerator:80,denominator:84.*useNonTankAttack:true,provisional:true/s);
   assert.match(pets, /NIN:.*numerator:80,denominator:85.*applicability:"damage"/s);
+  assert.match(pets, /MCH:.*numerator:80,denominator:90.*applicability:"damage"/s);
   assert.match(pets, /SMN:.*numerator:80,denominator:90.*applicability:"damage"/s);
   assert.match(pets, /SCH:.*numerator:80,denominator:90.*applicability:"healing"/s);
-  assert.match(pets, /AST:.*numerator:80,denominator:90.*traitOverride:104.*allowedActionIds:\[7439\]/s);
-  assert.doesNotMatch(pets, /MCH:\{/);
+  assert.match(pets, /AST:.*numerator:80,denominator:90.*hiddenTraitMultiplier:1\.04.*allowedActionIds:\[7439\]/s);
   assert.match(pets, /ownerMain-ownerBase\+petBase/);
   assert.match(pets, /profile\.numerator\*100\/POST_SQUISH_MODIFIER_BASE/);
+  assert.match(formula, /overrides\.postTraitMultiplier/);
   assert.match(engine, /petCorrection:actionOverride\?\.petCorrection\?\?configuredRule\.petCorrection/);
   assert.match(engine, /canApplyPetDamageCorrection\(candidatePetProfile,row\.actionId\)/);
   assert.match(page, /ペット／分身補正/);
