@@ -1,3 +1,5 @@
+import {SPECIAL_REPLACEMENT_ACTIONS,isSpecialControlAction} from "../../calculation/special-actions";
+
 const JOBS = new Set(["PLD","WAR","DRK","GNB","WHM","SCH","AST","SGE","MNK","DRG","NIN","SAM","RPR","VPR","BRD","MCH","DNC","BLM","SMN","RDM","PCT"]);
 const JOB_ROWS:Record<string,number>={PLD:19,WAR:21,DRK:32,GNB:37,WHM:24,SCH:28,AST:33,SGE:40,MNK:20,DRG:22,NIN:30,SAM:34,RPR:39,VPR:41,BRD:23,MCH:31,DNC:38,BLM:25,SMN:27,RDM:35,PCT:42};
 const FIELDS="Name,ActionCategory.Name,Cast100ms,Recast100ms,CooldownGroup,Icon,IsPlayerAction,CanTargetHostile,AttackType.Name,ClassJobLevel";
@@ -18,14 +20,15 @@ export async function GET(request:Request){
 
     const indirections=await searchAll("ActionIndirection",`+ClassJob=${JOB_ROWS[job]}`,"Name,ClassJob,PreviousComboAction",language);
     const pairs=indirections.map(r=>({actionId:refId(r.fields?.Name),previousId:refId(r.fields?.PreviousComboAction)})).filter(p=>p.actionId>0&&p.previousId>0);
-    const relatedIds=[...new Set(pairs.flatMap(p=>[p.actionId,p.previousId]))];
+    const specialReplacements=SPECIAL_REPLACEMENT_ACTIONS[job]||[],relatedIds=[...new Set([...pairs.flatMap(p=>[p.actionId,p.previousId]),...specialReplacements.map(item=>item.id)])];
     const metadata=await fetchActions(relatedIds,language);
     const levels=new Map<number,number>();for(const [id,a] of metadata)levels.set(id,a.level||1);
     for(let pass=0;pass<=pairs.length;pass++)for(const p of pairs){const inherited=Math.max(levels.get(p.actionId)||1,levels.get(p.previousId)||1);levels.set(p.actionId,inherited)}
     for(const p of pairs){const a=metadata.get(p.actionId),prev=metadata.get(p.previousId),effective=levels.get(p.actionId)||1;if(!a?.name||effective>level)continue;const lane=a.lane==="unknown"?prev?.lane:a.lane;if(!lane||lane==="unknown"||lane==="limitbreak")continue;const merged={...a,lane,level:effective,isAssignable:false,isReplacement:true};unique.set(`${merged.id}:${merged.name}`,merged)}
+    for(const item of specialReplacements){const a=metadata.get(item.id);if(!a?.name||item.level>level)continue;const merged={...a,level:item.level,isAssignable:false,isReplacement:true};if(merged.lane!=="unknown")unique.set(`${merged.id}:${merged.name}`,merged)}
 
     const descriptions=await fetchDescriptions([...unique.values()].map(a=>a.id),language);
-    for(const a of unique.values()){const description=descriptions.get(a.id);if(description){const dot=extractDot(description);a.dotPotency=dot.potency;a.dotDuration=dot.duration;a.potency=extractPotency(dot.directText);a.hasDamage=a.potency>0||a.dotPotency>0;a.guaranteedCrit=a.hasDamage&&/(?:必ず[^。\n]{0,30}クリティカルヒット|guaranteed (?:to be )?a critical|guaranteed critical)/i.test(description);a.guaranteedDh=a.hasDamage&&/(?:必ず[^。\n]{0,30}ダイレクトヒット|critical direct hit|guaranteed (?:to be )?a direct|guaranteed direct)/i.test(description)}}
+    for(const a of unique.values()){const description=descriptions.get(a.id);if(description){const dot=extractDot(description);a.dotPotency=dot.potency;a.dotDuration=dot.duration;a.potency=isSpecialControlAction(a.id)?0:extractPotency(dot.directText);a.hasDamage=a.potency>0||a.dotPotency>0||isSpecialControlAction(a.id);a.guaranteedCrit=a.hasDamage&&/(?:必ず[^。\n]{0,30}クリティカルヒット|guaranteed (?:to be )?a critical|guaranteed critical)/i.test(description);a.guaranteedDh=a.hasDamage&&/(?:必ず[^。\n]{0,30}ダイレクトヒット|critical direct hit|guaranteed (?:to be )?a direct|guaranteed direct)/i.test(description)}}
     for(const [id,a] of await fetchActions(limitBreakIds(job),language)){if(a.name)unique.set(`lb:${id}`,{...a,level:null})}
     const actions=[...unique.values()].sort((a,b)=>priority(a)-priority(b)||(a.level??999)-(b.level??999)||a.id-b.id||a.name.localeCompare(b.name,language));
     return Response.json({job,level,language,count:actions.length,actions},{headers:{"Cache-Control":"public, max-age=86400"}});

@@ -2,6 +2,8 @@ import {AA_JOB_MOD,AA_USES_MAIN,autoAttackPotency,baseDamage,clamp,expectedRoll,
 import {DOT_ACTIONS,findDotAction,type DotAction} from "./calculation/dot-actions";
 import {GUARANTEED_ACTIONS,findGuaranteedAction,type GuaranteedAction} from "./calculation/guaranteed-actions";
 import {JOB_CONFIGS,type ActionRule,type BuffRule,type JobConfig} from "./calculation/job-configs";
+import {canApplyPetDamageCorrection,findPetCorrectionProfile,petFormulaOverrides,petMainStat} from "./calculation/pet-configs";
+import {BUNSHIN,EARTHLY_STAR,QUEEN,SPECIAL_ACTION_IDS,bunshinPotency,isSpecialControlAction,livingShadowAttacks,queenAttacks,queenPotency} from "./calculation/special-actions";
 
 export type EngineStats = {
   level:number; weapon:number; aaInterval:number; aaSpeed:number; main:number; aaMain:number;
@@ -12,12 +14,12 @@ export type EngineStats = {
 export type EngineRow = {
   id:string; time:number; actionId:number|null; name:string; lane:"gcd"|"ability";
   potency:number; cast:number; recast:number; modifier:"none"|"delay"|"downtime"|"pre"|"potion";
-  modifierValue:number;
+  modifierValue:number; specialValue?:number;
   dotPotency?:number; dotDuration?:number; guaranteedCrit?:boolean; guaranteedDh?:boolean;
 };
 
-export type DotRule = { sourceActionId:number; key:string; potency:number; duration:number; tickInterval?:number };
-export type ActionDataOverride={actionId:number;potency?:number;dotPotency?:number;dotDuration?:number;recast?:number;cast?:number;lane?:"gcd"|"ability";guaranteedCrit?:boolean;guaranteedDh?:boolean;evolve?:boolean};
+export type DotRule = { sourceActionId:number; key:string; potency:number; duration:number; tickInterval?:number; initialTick?:boolean };
+export type ActionDataOverride={actionId:number;potency?:number;dotPotency?:number;dotDuration?:number;recast?:number;cast?:number;lane?:"gcd"|"ability";guaranteedCrit?:boolean;guaranteedDh?:boolean;petCorrection?:boolean;evolve?:boolean};
 export type DeveloperCalculationOverrides={dots?:DotAction[];guaranteed?:GuaranteedAction[];jobs?:Record<string,JobConfig>;actions?:Record<string,ActionDataOverride[]>};
 export type {ActionRule,BuffRule,JobConfig};
 
@@ -25,18 +27,20 @@ export type EngineComputedRow<T extends EngineRow = EngineRow> = T & {
   prepare:number; damageEvent:number; nextGcd:number; nextOgcd:number; dps:number; simulatedDps:number;
   sumPotency:number; aaCount:number; totalDamage:number; simulatedDamage:number; rowDamage:number;
   aaDamage:number; dotDamage:number; dotDamageByAction:Record<string,number>;
+  specialDamage:number; specialDamageByAction:Record<string,number>;
 };
 
 type ActiveBuff = BuffRule & { starts:number; ends:number; remainingStacks?:number };
 type DotInstance = DotRule & { sourceName:string; nextTick:number; ends:number; base:number; multipliers:number[]; crit:boolean; dh:boolean };
 type Downtime = { start:number; end:number };
+type ScheduledSpecial={id:string;group:string;time:number;potency:number;sourceName:string;actionId:number;phase?:"punch"|"finisher"};
 
 const applies=(buff:BuffRule,actionId:number|null)=>actionId!==null&&(!buff.include||buff.include.includes(actionId))&&(!buff.exclude||!buff.exclude.includes(actionId));
 const targetable=(time:number,downtimes:Downtime[])=>!downtimes.some(item=>time>=item.start&&time<item.end);
 function addActiveDuration(start:number,duration:number,downtimes:Downtime[]){let cursor=start,remaining=Math.max(0,duration);for(const item of downtimes.slice().sort((a,b)=>a.start-b.start)){if(item.end<=cursor)continue;if(item.start>=cursor+remaining)break;if(item.start>cursor){remaining-=item.start-cursor;cursor=item.start}cursor=Math.max(cursor,item.end)}return cursor+remaining}
 
 function hashSeed(rows:EngineRow[],stats:EngineStats,job:string){
-  const source=`${job}|${JSON.stringify(stats)}|${rows.map(row=>`${row.actionId}:${row.time}:${row.potency}`).join("|")}`;
+  const source=`${job}|${JSON.stringify(stats)}|${rows.map(row=>`${row.actionId}:${row.time}:${row.potency}:${row.specialValue??""}`).join("|")}`;
   let hash=2166136261;for(let i=0;i<source.length;i++){hash^=source.charCodeAt(i);hash=Math.imul(hash,16777619)}return hash>>>0||1;
 }
 function rng(seed:number){let state=seed>>>0;return()=>{state^=state<<13;state^=state>>>17;state^=state<<5;return(state>>>0)/4294967296}}
@@ -44,35 +48,65 @@ export {speedAdjustedTime};
 export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,job:string,overrides:DeveloperCalculationOverrides={}):EngineComputedRow<T>[] {
   const config=(overrides.jobs||JOB_CONFIGS)[job]||{buffs:[],actions:{}},dotList=overrides.dots||DOT_ACTIONS,guaranteedList=overrides.guaranteed||GUARANTEED_ACTIONS,iterations=clamp(Math.round(stats.simulationIterations||1000),1,10000),mainStat=stats.main,aaUsesMain=AA_USES_MAIN.has(job),aaMain=aaUsesMain?stats.main:stats.aaMain,aaPotency=autoAttackPotency(job),aaFormulaStats={...stats,speed:stats.aaSpeed};
   const downtimes=rows.filter(row=>row.modifier==="downtime").map(row=>({start:row.time,end:row.time+Math.max(0,row.modifierValue)}));
-  const random=rng(hashSeed(rows,stats,job));let nextGcd=0,nextOgcd=0,nextAa=0,aaCount=0,sumPotency=0,total=0,simTotal=0,aaTotal=0,dotTotal=0;
-  const activeBuffs:ActiveBuff[]=[],dots=new Map<string,DotInstance>(),dotBreakdown:Record<string,number>={};const output:EngineComputedRow<T>[]=[];
+  const random=rng(hashSeed(rows,stats,job));let nextGcd=0,nextOgcd=0,nextAa=0,aaCount=0,sumPotency=0,total=0,simTotal=0,aaTotal=0,dotTotal=0,specialTotal=0;
+  const activeBuffs:ActiveBuff[]=[],dots=new Map<string,DotInstance>(),dotBreakdown:Record<string,number>={},specialBreakdown:Record<string,number>={},scheduled:ScheduledSpecial[]=[];const output:EngineComputedRow<T>[]=[];
+  let bunshinState:{ends:number;stacks:number;sourceName:string}|undefined,starState:{placedAt:number;group:string;sourceName:string}|undefined,queenState:{group:string;battery:number;sourceName:string}|undefined;
+  const resolveScheduled=(until:number)=>{
+    let expected=0,simulated=0,potency=0;scheduled.sort((a,b)=>a.time-b.time);
+    while(scheduled.length&&scheduled[0].time<=until){
+      const event=scheduled.shift()!;if(!targetable(event.time,downtimes))continue;
+      const buffs=activeBuffs.filter(buff=>event.time>=buff.starts&&event.time<buff.ends&&applies(buff,event.actionId)),multipliers=buffs.map(buff=>buff.damageMultiplier||1).filter(value=>value!==1);
+      const mainBonus=buffs.reduce((value,buff)=>value+Math.min(Math.floor(stats.main*(buff.mainStatPercent||0)),buff.mainStatCap??Infinity),0),profile=findPetCorrectionProfile(job);
+      const actionMain=profile?petMainStat(profile,stats.level,mainStat+mainBonus):mainStat+mainBonus,formulaOverrides=profile?petFormulaOverrides(profile,stats.level):{};
+      const base=baseDamage(event.potency,stats,job,actionMain,"direct",false,formulaOverrides),eventExpected=expectedRoll(base,stats,false,false,multipliers);let eventSim=0;
+      for(let i=0;i<iterations;i++)eventSim+=simulatedRoll(base,stats,random,false,false,multipliers);eventSim/=iterations;
+      expected+=eventExpected;simulated+=eventSim;potency+=event.potency;specialBreakdown[event.sourceName]=(specialBreakdown[event.sourceName]||0)+eventExpected;
+    }
+    return{expected,simulated,potency};
+  };
   for(const row of rows){
     const executionBuffs=row.actionId===null?[]:activeBuffs.filter(buff=>row.time>=buff.starts&&row.time<buff.ends&&(buff.remainingStacks===undefined||buff.remainingStacks>0)&&applies(buff,row.actionId));
     const executionHaste=executionBuffs.reduce((value,buff)=>Math.max(value,buff.haste||0),config.passiveHaste||0);
     const prepare=row.actionId===null?row.time:row.time+speedAdjustedTime(Math.max(0,row.cast||0),stats,executionHaste);
     const damageEvent=row.modifier==="delay"||row.modifier==="downtime"?row.time+Math.max(0,row.modifierValue):prepare;
+    const detonatedStar=row.actionId===SPECIAL_ACTION_IDS.stellarDetonation?starState:undefined;
+    if(detonatedStar){for(let index=scheduled.length-1;index>=0;index--)if(scheduled[index].group===detonatedStar.group)scheduled.splice(index,1);starState=undefined}
+    if(row.actionId===SPECIAL_ACTION_IDS.queenOverdrive&&queenState){
+      const pendingPunches=scheduled.filter(event=>event.group===queenState!.group&&event.phase==="punch"&&event.time>=damageEvent);
+      if(pendingPunches.length){const finisherAt=Math.max(damageEvent,Math.min(...pendingPunches.map(event=>event.time)));for(let index=scheduled.length-1;index>=0;index--)if(scheduled[index].group===queenState.group&&scheduled[index].time>=damageEvent)scheduled.splice(index,1);scheduled.push({id:`${queenState.group}:pile`,group:queenState.group,time:finisherAt,potency:queenPotency(QUEEN.pileBunker,queenState.battery),sourceName:queenState.sourceName,actionId:SPECIAL_ACTION_IDS.automatonQueen,phase:"finisher"});if(stats.level>=86)scheduled.push({id:`${queenState.group}:collider`,group:queenState.group,time:finisherAt+QUEEN.finisherInterval,potency:queenPotency(QUEEN.crownedCollider,queenState.battery),sourceName:queenState.sourceName,actionId:SPECIAL_ACTION_IDS.automatonQueen,phase:"finisher"})}
+    }
+    const specialResult=resolveScheduled(damageEvent);specialTotal+=specialResult.expected;total+=specialResult.expected;simTotal+=specialResult.simulated;sumPotency+=specialResult.potency;
     let rowDotDamage=0,rowDotSim=0,rowDotPotency=0;
       for(const [key,dot] of dots){while(dot.nextTick<=damageEvent&&dot.nextTick<=dot.ends){if(targetable(dot.nextTick,downtimes)){const expected=expectedRoll(dot.base,stats,dot.crit,dot.dh,dot.multipliers);rowDotDamage+=expected;rowDotPotency+=dot.potency;dotBreakdown[dot.sourceName]=(dotBreakdown[dot.sourceName]||0)+expected;let sample=0;for(let i=0;i<iterations;i++)sample+=simulatedDotRoll(dot.base,stats,random,dot.crit,dot.dh,dot.multipliers);rowDotSim+=sample/iterations}dot.nextTick+=(dot.tickInterval||3)}if(dot.nextTick>dot.ends)dots.delete(key)}
     dotTotal+=rowDotDamage;total+=rowDotDamage;simTotal+=rowDotSim;sumPotency+=rowDotPotency;
-    let rowDamage=0,rowSim=0;
+    let rowDamage=0,rowSim=0,effectivePotency=row.potency;
     if(row.modifier==="delay"||row.modifier==="downtime"){
       nextGcd=Math.max(nextGcd,row.time)+Math.max(0,row.modifierValue);nextOgcd=Math.max(nextOgcd,row.time)+Math.max(0,row.modifierValue);
     }else if(row.modifier==="potion"){
       activeBuffs.push({sourceActionId:-1,duration:30,mainStatPercent:Math.max(0,stats.potionPercent)/100,mainStatCap:Math.max(0,stats.potionCap),starts:row.time,ends:row.time+30});
       nextOgcd=Math.max(nextOgcd,row.time)+.675;
     }else if(row.actionId!==null){
+      if(row.actionId===SPECIAL_ACTION_IDS.stellarDetonation)effectivePotency=detonatedStar?(damageEvent-detonatedStar.placedAt>=EARTHLY_STAR.growAfter?EARTHLY_STAR.largePotency:EARTHLY_STAR.smallPotency):0;
+      else if(isSpecialControlAction(row.actionId))effectivePotency=0;
       const buffs=activeBuffs.filter(buff=>prepare>=buff.starts&&prepare<buff.ends&&applies(buff,row.actionId));
-      const actionOverride=overrides.actions?.[job]?.find(item=>item.actionId===row.actionId),configuredRule=(config.actions||{})[row.actionId]||{},listedGuaranteed=findGuaranteedAction(job,row.actionId,guaranteedList),actionRule={...configuredRule,guaranteedCrit:actionOverride?.guaranteedCrit??configuredRule.guaranteedCrit??listedGuaranteed?.crit??row.guaranteedCrit,guaranteedDh:actionOverride?.guaranteedDh??configuredRule.guaranteedDh??listedGuaranteed?.dh??row.guaranteedDh};
-      const multipliers=[actionRule.multiplier||1,...buffs.map(buff=>buff.damageMultiplier||1)].filter(value=>value!==1);
+      const actionOverride=overrides.actions?.[job]?.find(item=>item.actionId===row.actionId),configuredRule=(config.actions||{})[row.actionId]||{},listedGuaranteed=findGuaranteedAction(job,row.actionId,guaranteedList),actionRule={...configuredRule,petCorrection:!!detonatedStar||(actionOverride?.petCorrection??configuredRule.petCorrection),guaranteedCrit:actionOverride?.guaranteedCrit??configuredRule.guaranteedCrit??listedGuaranteed?.crit??row.guaranteedCrit,guaranteedDh:actionOverride?.guaranteedDh??configuredRule.guaranteedDh??listedGuaranteed?.dh??row.guaranteedDh};
+      const multipliers=[actionRule.multiplier||1,...buffs.map(buff=>buff.damageMultiplier||1)].filter(value=>value!==1),candidatePetProfile=actionRule.petCorrection?findPetCorrectionProfile(job):undefined,petProfile=canApplyPetDamageCorrection(candidatePetProfile,row.actionId)?candidatePetProfile:undefined;
       const mainBonus=buffs.reduce((value,buff)=>value+Math.min(Math.floor(stats.main*(buff.mainStatPercent||0)),buff.mainStatCap??Infinity),0);
-      const base=baseDamage(Math.max(0,row.potency),stats,job,mainStat+mainBonus,"direct",!!actionRule.guaranteedDh);
+      const actionMain=petProfile?petMainStat(petProfile,stats.level,mainStat+mainBonus):mainStat+mainBonus,formulaOverrides=petProfile?petFormulaOverrides(petProfile,stats.level):{};
+      const base=baseDamage(Math.max(0,effectivePotency),stats,job,actionMain,"direct",!!actionRule.guaranteedDh,formulaOverrides);
       rowDamage=expectedRoll(base,stats,actionRule.guaranteedCrit,actionRule.guaranteedDh,multipliers);
       for(let i=0;i<iterations;i++)rowSim+=simulatedRoll(base,stats,random,actionRule.guaranteedCrit,actionRule.guaranteedDh,multipliers);rowSim/=iterations;
-      total+=rowDamage;simTotal+=rowSim;sumPotency+=Math.max(0,row.potency);
+      const echoPotency=bunshinState&&damageEvent<bunshinState.ends&&bunshinState.stacks>0?bunshinPotency(row.actionId):0;
+      if(echoPotency>0){const profile=findPetCorrectionProfile("NIN")!,echoMain=petMainStat(profile,stats.level,mainStat+mainBonus),echoBase=baseDamage(echoPotency,stats,job,echoMain,"direct",false,petFormulaOverrides(profile,stats.level)),echoExpected=expectedRoll(echoBase,stats,false,false,multipliers);let echoSim=0;for(let i=0;i<iterations;i++)echoSim+=simulatedRoll(echoBase,stats,random,false,false,multipliers);echoSim/=iterations;specialTotal+=echoExpected;total+=echoExpected;simTotal+=echoSim;sumPotency+=echoPotency;specialBreakdown[bunshinState.sourceName]=(specialBreakdown[bunshinState.sourceName]||0)+echoExpected;bunshinState.stacks--}
+      total+=rowDamage;simTotal+=rowSim;sumPotency+=Math.max(0,effectivePotency);
       const recast=gcdCycleTime(row.recast||stats.gcd,stats,executionHaste);
       if(row.lane==="gcd")nextGcd=Math.max(nextGcd,row.time)+recast;nextOgcd=Math.max(nextOgcd,row.time)+.675;
-      const listedDot=findDotAction(job,row.actionId,dotList),dotRule=actionOverride?(actionOverride.dotPotency&&actionOverride.dotDuration?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:actionOverride.dotPotency,duration:actionOverride.dotDuration}:undefined):listedDot?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:listedDot.potency,duration:listedDot.duration,tickInterval:listedDot.tickInterval}:(row.dotPotency&&row.dotDuration?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:row.dotPotency,duration:row.dotDuration}:undefined);
-      if(dotRule){const tickInterval=dotRule.tickInterval||3,dotBase=baseDamage(dotRule.potency,stats,job,mainStat+mainBonus,"dot",!!actionRule.guaranteedDh),nextTick=(Math.floor(damageEvent/tickInterval)+1)*tickInterval;dots.set(dotRule.key,{...dotRule,sourceName:row.name,nextTick,ends:damageEvent+dotRule.duration,base:dotBase,multipliers,crit:!!actionRule.guaranteedCrit,dh:!!actionRule.guaranteedDh})}
+      const listedDot=findDotAction(job,row.actionId,dotList),dotRule=actionOverride?(actionOverride.dotPotency&&actionOverride.dotDuration?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:actionOverride.dotPotency,duration:actionOverride.dotDuration}:undefined):listedDot?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:listedDot.potency,duration:listedDot.duration,tickInterval:listedDot.tickInterval,initialTick:listedDot.initialTick}:(row.dotPotency&&row.dotDuration?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:row.dotPotency,duration:row.dotDuration}:undefined);
+      if(dotRule){const tickInterval=dotRule.tickInterval||3,dotBase=baseDamage(dotRule.potency,stats,job,actionMain,"dot",!!actionRule.guaranteedDh,formulaOverrides),nextTick=(Math.floor(damageEvent/tickInterval)+1)*tickInterval;dots.set(dotRule.key,{...dotRule,sourceName:row.name,nextTick,ends:damageEvent+dotRule.duration,base:dotBase,multipliers,crit:!!actionRule.guaranteedCrit,dh:!!actionRule.guaranteedDh});if(dotRule.initialTick&&targetable(damageEvent,downtimes)){const initialExpected=expectedRoll(dotBase,stats,actionRule.guaranteedCrit,actionRule.guaranteedDh,multipliers);let initialSim=0;for(let i=0;i<iterations;i++)initialSim+=simulatedDotRoll(dotBase,stats,random,actionRule.guaranteedCrit,actionRule.guaranteedDh,multipliers);initialSim/=iterations;rowDotDamage+=initialExpected;rowDotSim+=initialSim;rowDotPotency+=dotRule.potency;dotTotal+=initialExpected;total+=initialExpected;simTotal+=initialSim;sumPotency+=dotRule.potency;dotBreakdown[row.name]=(dotBreakdown[row.name]||0)+initialExpected}}
+      if(row.actionId===SPECIAL_ACTION_IDS.livingShadow){const group=`living-shadow:${row.id}`;for(const [index,attack] of livingShadowAttacks(stats.level).entries())if(attack.potency>0)scheduled.push({id:`${group}:${index}`,group,time:damageEvent+attack.offset,potency:attack.potency,sourceName:row.name,actionId:row.actionId})}
+      if(row.actionId===SPECIAL_ACTION_IDS.earthlyStar){const group=`earthly-star:${row.id}`;starState={placedAt:damageEvent,group,sourceName:row.name};scheduled.push({id:`${group}:auto`,group,time:damageEvent+EARTHLY_STAR.expiresAfter,potency:EARTHLY_STAR.largePotency,sourceName:row.name,actionId:row.actionId})}
+      if(row.actionId===SPECIAL_ACTION_IDS.bunshin)bunshinState={ends:damageEvent+BUNSHIN.duration,stacks:BUNSHIN.stacks,sourceName:row.name};
+      if(row.actionId===SPECIAL_ACTION_IDS.automatonQueen){const battery=clamp(Math.round(row.specialValue??100),QUEEN.minBattery,QUEEN.maxBattery),group=`queen:${row.id}`;queenState={group,battery,sourceName:row.name};for(const [index,attack] of queenAttacks(stats.level,battery).entries())scheduled.push({id:`${group}:${index}`,group,time:damageEvent+attack.offset,potency:attack.potency,sourceName:row.name,actionId:row.actionId,phase:attack.phase})}
       for(const buff of executionBuffs)if(buff.remainingStacks!==undefined&&buff.haste&&applies(buff,row.actionId))buff.remainingStacks=Math.max(0,buff.remainingStacks-1);
       for(const buff of (config.buffs||[]).filter(rule=>rule.sourceActionId===row.actionId)){const starts=damageEvent+(buff.activationDelay||0);activeBuffs.push({...buff,starts,ends:starts+buff.duration,remainingStacks:buff.stacks})}
     }
@@ -82,13 +116,13 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
       if(blocked){nextAa=blocked.end;continue}
       const tickTime=nextAa,buffs=activeBuffs.filter(buff=>tickTime>=buff.starts&&tickTime<buff.ends&&(buff.remainingStacks===undefined||buff.remainingStacks>0)&&applies(buff,-1));
       const multipliers=buffs.map(buff=>buff.damageMultiplier||1).filter(value=>value!==1),mainBonus=aaUsesMain?buffs.reduce((value,buff)=>value+Math.min(Math.floor(stats.main*(buff.mainStatPercent||0)),buff.mainStatCap??Infinity),0):0;
-      const aaBase=baseDamage(aaPotency,aaFormulaStats,job,aaMain+mainBonus,"auto",false,AA_JOB_MOD[job]||100);aaDamage+=expectedRoll(aaBase,aaFormulaStats,false,false,multipliers);
+      const aaBase=baseDamage(aaPotency,aaFormulaStats,job,aaMain+mainBonus,"auto",false,{jobMod:AA_JOB_MOD[job]||100});aaDamage+=expectedRoll(aaBase,aaFormulaStats,false,false,multipliers);
       for(let i=0;i<iterations;i++)aaSim+=simulatedRoll(aaBase,aaFormulaStats,random,false,false,multipliers)/iterations;
       const aaHaste=buffs.reduce((value,buff)=>Math.max(value,buff.haste||0),config.passiveHaste||0),interval=Math.max(.01,speedAdjustedTime(stats.aaInterval,aaFormulaStats,aaHaste));
       nextAa=addActiveDuration(tickTime,interval,downtimes);aaCount++;newAa++;
     }
     aaTotal+=aaDamage;total+=aaDamage;simTotal+=aaSim;sumPotency+=newAa*aaPotency;
-    output.push({...row,prepare,damageEvent,nextGcd,nextOgcd,dps:damageEvent>0?total/damageEvent:0,simulatedDps:damageEvent>0?simTotal/damageEvent:0,sumPotency,aaCount,totalDamage:total,simulatedDamage:simTotal,rowDamage,aaDamage:aaTotal,dotDamage:dotTotal,dotDamageByAction:{...dotBreakdown}});
+    output.push({...row,potency:effectivePotency,prepare,damageEvent,nextGcd,nextOgcd,dps:damageEvent>0?total/damageEvent:0,simulatedDps:damageEvent>0?simTotal/damageEvent:0,sumPotency,aaCount,totalDamage:total,simulatedDamage:simTotal,rowDamage,aaDamage:aaTotal,dotDamage:dotTotal,dotDamageByAction:{...dotBreakdown},specialDamage:specialTotal,specialDamageByAction:{...specialBreakdown}});
   }
   return output;
 }

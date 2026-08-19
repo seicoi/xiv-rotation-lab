@@ -1,5 +1,5 @@
 export type BuffRule={sourceActionId:number;duration:number;activationDelay?:number;damageMultiplier?:number;haste?:number;stacks?:number;mainStatPercent?:number;mainStatCap?:number;include?:number[];exclude?:number[]};
-export type ActionRule={guaranteedCrit?:boolean;guaranteedDh?:boolean;multiplier?:number};
+export type ActionRule={guaranteedCrit?:boolean;guaranteedDh?:boolean;multiplier?:number;petCorrection?:boolean};
 export type JobConfig={buffs:BuffRule[];actions:Record<number,ActionRule>;passiveHaste?:number};
 const JOBS=["PLD","WAR","DRK","GNB","WHM","SCH","AST","SGE","MNK","DRG","NIN","SAM","RPR","VPR","BRD","MCH","DNC","BLM","SMN","RDM","PCT"];
 export const JOB_CONFIGS:Record<string,JobConfig>=Object.fromEntries(JOBS.map(job=>[job,{buffs:[],actions:{}}]));

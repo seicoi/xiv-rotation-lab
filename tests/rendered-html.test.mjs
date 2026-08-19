@@ -36,10 +36,13 @@ test("server-renders XIV Rotation Lab", async () => {
 });
 
 test("keeps the Allagan Studies damage and timing invariants explicit", async () => {
-  const [formula, engine, jobs, page, actionRoute] = await Promise.all([
+  const [formula, engine, jobs, pets, specials, dots, page, actionRoute] = await Promise.all([
     readFile(new URL("../app/calculation/damage-formula.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/damage-engine.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/calculation/job-configs.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/calculation/pet-configs.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/calculation/special-actions.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/calculation/dot-actions.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/actions/route.ts", import.meta.url), "utf8"),
   ]);
@@ -88,4 +91,34 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   // English descriptions use "a potency of 220" while Japanese and some
   // secondary values use a colon. Match the direct value before combo values.
   assert.match(actionRoute, /potency\\s\+of/);
+
+  // Post-stat-squish pet ratios stay separate from the historical 5.x values.
+  assert.match(pets, /DRK:.*numerator:80,denominator:84.*useNonTankAttack:true,provisional:true/s);
+  assert.match(pets, /NIN:.*numerator:80,denominator:85.*applicability:"damage"/s);
+  assert.match(pets, /MCH:.*numerator:80,denominator:90.*applicability:"damage"/s);
+  assert.match(pets, /SMN:.*numerator:80,denominator:90.*applicability:"damage"/s);
+  assert.match(pets, /SCH:.*numerator:80,denominator:90.*applicability:"healing"/s);
+  assert.match(pets, /AST:.*numerator:80,denominator:90.*hiddenTraitMultiplier:1\.04.*allowedActionIds:\[7439,8324\]/s);
+  assert.match(pets, /ownerMain-ownerBase\+petBase/);
+  assert.match(pets, /profile\.numerator\*100\/POST_SQUISH_MODIFIER_BASE/);
+  assert.match(formula, /overrides\.postTraitMultiplier/);
+  assert.match(engine, /petCorrection:!!detonatedStar\|\|\(actionOverride\?\.petCorrection\?\?configuredRule\.petCorrection\)/);
+  assert.match(engine, /canApplyPetDamageCorrection\(candidatePetProfile,row\.actionId\)/);
+  assert.match(page, /ペット／分身補正/);
+
+  // Summons, delayed detonation, clone stacks, and ground effects use their
+  // dedicated timing models rather than a parsed direct-potency shortcut.
+  assert.match(specials, /livingShadowAttacks/);
+  assert.match(specials, /stacks:5,duration:30,singlePotency:160,aoePotency:80/);
+  assert.match(specials, /growAfter:10,expiresAfter:20,smallPotency:205,largePotency:310/);
+  assert.match(specials, /initialDelay:5\.5,punchInterval:1\.56,punches:5,finisherInterval:2/);
+  assert.match(specials, /minBattery:50,maxBattery:100/);
+  assert.match(engine, /resolveScheduled/);
+  assert.match(engine, /damageEvent<bunshinState\.ends/);
+  assert.match(engine, /bunshinState\.stacks--/);
+  assert.match(engine, /queenOverdrive/);
+  assert.match(dots, /actionId:3639.*initialTick:true/);
+  assert.match(dots, /actionId:2270.*initialTick:true/);
+  assert.match(dots, /actionId:25837.*initialTick:true/);
+  assert.match(page, /<BatteryInput value=\{row\.specialValue\?\?100\}/);
 });
