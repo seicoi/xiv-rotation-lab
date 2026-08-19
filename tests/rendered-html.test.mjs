@@ -36,11 +36,12 @@ test("server-renders XIV Rotation Lab", async () => {
 });
 
 test("keeps the Allagan Studies damage and timing invariants explicit", async () => {
-  const [formula, engine, jobs, page] = await Promise.all([
+  const [formula, engine, jobs, page, actionRoute] = await Promise.all([
     readFile(new URL("../app/calculation/damage-formula.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/damage-engine.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/calculation/job-configs.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/actions/route.ts", import.meta.url), "utf8"),
   ]);
 
   // Current Attack is 90 potency; Shot (BRD/MCH) is 80 potency.
@@ -83,4 +84,8 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(jobs, /JOB_CONFIGS\.VPR\.buffs\.push/);
   assert.match(jobs, /JOB_CONFIGS\.BLM\.buffs\.push\(\{sourceActionId:3573,duration:20,haste:15\}\)/);
   assert.match(jobs, /sourceActionId:34675,duration:30,haste:25,stacks:5/);
+
+  // English descriptions use "a potency of 220" while Japanese and some
+  // secondary values use a colon. Match the direct value before combo values.
+  assert.match(actionRoute, /potency\\s\+of/);
 });
