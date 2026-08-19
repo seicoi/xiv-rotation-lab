@@ -8,7 +8,22 @@ export const SPECIAL_ACTION_IDS={
   saltedEarth:3639,
   slipstream:25837,
   doton:2270,
+  phantomKamaitachi:25774,
 } as const;
+
+export const PET_COMMAND_DELAY=.675;
+
+export const SMN_PET_COMMAND_ACTION_IDS=new Set<number>([
+  25802,25803,25804, // Ruby, Topaz, Emerald Carbuncle
+  25805,25806,25807, // Ifrit, Titan, Garuda
+  25838,25839,25840, // Ifrit II, Titan II, Garuda II
+  7427,7429,         // Bahamut, Enkindle Bahamut
+  25831,16516,       // Phoenix, Enkindle Phoenix
+  36992,36998,       // Solar Bahamut, Enkindle Solar Bahamut
+]);
+
+export const isSummonerPetCommand=(job:string,actionId:number)=>job==="SMN"&&SMN_PET_COMMAND_ACTION_IDS.has(actionId);
+export const isDirectPetCorrectedAction=(job:string,actionId:number)=>(job==="NIN"&&actionId===SPECIAL_ACTION_IDS.phantomKamaitachi)||isSummonerPetCommand(job,actionId);
 
 export type TimedSpecialAttack={offset:number;potency:number;phase?:"punch"|"finisher"};
 

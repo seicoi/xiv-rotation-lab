@@ -102,9 +102,10 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(pets, /ownerMain-ownerBase\+petBase/);
   assert.match(pets, /profile\.numerator\*100\/POST_SQUISH_MODIFIER_BASE/);
   assert.match(formula, /overrides\.postTraitMultiplier/);
-  assert.match(engine, /petCorrection:!!detonatedStar\|\|\(actionOverride\?\.petCorrection\?\?configuredRule\.petCorrection\)/);
+  assert.match(engine, /usesPetFormula=!!detonatedStar\|\|isDirectPetCorrectedAction\(job,row\.actionId\)/);
   assert.match(engine, /canApplyPetDamageCorrection\(candidatePetProfile,row\.actionId\)/);
   assert.match(page, /ペット／分身補正/);
+  assert.doesNotMatch(page, /onChange=\{event=>update\(action,\{petCorrection:/);
 
   // Summons, delayed detonation, clone stacks, and ground effects use their
   // dedicated timing models rather than a parsed direct-potency shortcut.
@@ -117,6 +118,11 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(engine, /damageEvent<bunshinState\.ends/);
   assert.match(engine, /bunshinState\.stacks--/);
   assert.match(engine, /queenOverdrive/);
+  assert.match(specials, /phantomKamaitachi:25774/);
+  assert.match(specials, /isDirectPetCorrectedAction/);
+  assert.match(specials, /PET_COMMAND_DELAY=\.675/);
+  assert.match(engine, /isSummonerPetCommand\(job,row\.actionId\)\?actionReady\+PET_COMMAND_DELAY:actionReady/);
+  assert.match(engine, /damageEvent=.*:actionReady/);
   assert.match(dots, /actionId:3639.*initialTick:true/);
   assert.match(dots, /actionId:2270.*initialTick:true/);
   assert.match(dots, /actionId:25837.*initialTick:true/);

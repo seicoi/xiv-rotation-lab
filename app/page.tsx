@@ -6,7 +6,7 @@ import {DOT_ACTIONS} from "./calculation/dot-actions";
 import {GUARANTEED_ACTIONS} from "./calculation/guaranteed-actions";
 import {JOB_CONFIGS} from "./calculation/job-configs";
 import {autoAttackPotency} from "./calculation/damage-formula";
-import {canApplyPetDamageCorrection,findPetCorrectionProfile} from "./calculation/pet-configs";
+import {findPetCorrectionProfile} from "./calculation/pet-configs";
 import {SPECIAL_ACTION_IDS,isSpecialControlAction} from "./calculation/special-actions";
 
 type Lane = "gcd" | "ability";
@@ -17,7 +17,7 @@ type Panel = "timeline" | "stats" | "analysis" | "database";
 type Locale = "ja" | "en";
 type ImportKind = "sheet" | "timeline" | "fflogs";
 type ImportTarget = "both" | "actions" | "boss";
-type CatalogAction = { id:number; name:string; lane:ActionKind; level:number|null; recast:number; cast:number; potency:number; dotPotency:number; dotDuration:number; guaranteedCrit:boolean; guaranteedDh:boolean; petCorrection?:boolean; evolve?:boolean; iconPath:string; hasDamage:boolean; isReplacement:boolean; isAssignable:boolean };
+type CatalogAction = { id:number; name:string; lane:ActionKind; level:number|null; recast:number; cast:number; potency:number; dotPotency:number; dotDuration:number; guaranteedCrit:boolean; guaranteedDh:boolean; evolve?:boolean; iconPath:string; hasDamage:boolean; isReplacement:boolean; isAssignable:boolean };
 type TimelineRow = { id:string; time:number; actionId:number|null; name:string; lane:Lane; potency:number; cast:number; recast:number; dotPotency?:number; dotDuration?:number; guaranteedCrit?:boolean; guaranteedDh?:boolean; specialValue?:number; boss:string; iconPath:string; modifier:Modifier; modifierValue:number };
 type Sheet = { id:string; name:string; job:string; rows:TimelineRow[] };
 type Stats = { level:number; weapon:number; aaInterval:number; aaSpeed:number; main:number; aaMain:number; crit:number; dh:number; det:number; speed:number; tenacity:number; gcd:number; potionPercent:number; potionCap:number; simulationIterations:number };
@@ -152,7 +152,7 @@ function DatabaseNumberInput({value,step=1,disabled,onCommit,label}:{value:numbe
 function DatabasePanel({job,actions,developerMode,setDeveloperMode,config,setConfig,locale}:{job:string;actions:CatalogAction[];developerMode:boolean;setDeveloperMode:(value:boolean)=>void;config:Required<DeveloperCalculationOverrides>;setConfig:(value:Required<DeveloperCalculationOverrides>)=>void;locale:Locale}){
   const overrides=config.actions[job]||[],visibleActions=actions.filter(action=>action.id>=0),petProfile=findPetCorrectionProfile(job);
   const update=(action:CatalogAction,patch:Partial<ActionDataOverride>)=>{
-    const existing=overrides.find(item=>item.actionId===action.id),baseline={actionId:action.id,potency:action.potency,dotPotency:action.dotPotency,dotDuration:action.dotDuration,recast:action.recast,cast:action.cast,lane:action.lane==="gcd"?"gcd" as const:"ability" as const,guaranteedCrit:action.guaranteedCrit,guaranteedDh:action.guaranteedDh,petCorrection:action.petCorrection??false,evolve:action.evolve??false};
+    const existing=overrides.find(item=>item.actionId===action.id),baseline={actionId:action.id,potency:action.potency,dotPotency:action.dotPotency,dotDuration:action.dotDuration,recast:action.recast,cast:action.cast,lane:action.lane==="gcd"?"gcd" as const:"ability" as const,guaranteedCrit:action.guaranteedCrit,guaranteedDh:action.guaranteedDh,evolve:action.evolve??false};
     const next={...(existing||baseline),...patch},jobOverrides=existing?overrides.map(item=>item.actionId===action.id?next:item):[...overrides,next];
     setConfig({...config,actions:{...config.actions,[job]:jobOverrides}});
   };
@@ -163,9 +163,9 @@ function DatabasePanel({job,actions,developerMode,setDeveloperMode,config,setCon
     <article className="database-card action-database-card"><div className="database-heading"><div><p className="eyebrow">ACTION DATABASE · {job}</p><h2>{ja?"ロード中のアクション":"Loaded actions"}</h2><p>{ja?"Rebornは現行7.x、Evolveは2027年1月予定の8.x以降を表します。":"Reborn denotes current 7.x data; Evolve is reserved for 8.x from January 2027."}</p></div><div className="database-controls"><span>{ja?`ブラウザ上書き ${overrides.length}件`:`${overrides.length} browser overrides`}</span>{developerMode&&<button onClick={resetJob} disabled={!overrides.length}>{ja?"このジョブを初期値に戻す":"Reset this job"}</button>}<button className={developerMode?"active":""} onClick={()=>setDeveloperMode(!developerMode)}>{developerMode?(ja?"編集を終了":"Finish editing"):(ja?"開発者オプションを有効化":"Enable developer options")}</button></div></div>
       {/* External game icons are served dynamically and cannot use a static image optimizer. */}
       <div className="database-table-wrap"><table className="database-table"><thead><tr>
-        <th>{ja?"アイコン":"Icon"}</th><th>{ja?"名前":"Name"}</th><th>{ja?"威力":"Potency"}</th><th>{ja?"継続ダメージ":"DoT potency"}</th><th>{ja?"クールダウン":"Cooldown"}</th><th>{ja?"キャスト":"Cast"}</th><th>GCD / {ja?"アビリティ":"Ability"}</th><th>DoT / {ja?"非DoT":"Non-DoT"}</th><th>{ja?"確定CRIT":"Guaranteed CRIT"}</th><th>{ja?"確定DH":"Guaranteed DH"}</th><th>{ja?"ペット／分身補正":"Pet / clone"}</th><th>Reborn / Evolve</th>
+        <th>{ja?"アイコン":"Icon"}</th><th>{ja?"名前":"Name"}</th><th>{ja?"威力":"Potency"}</th><th>{ja?"継続ダメージ":"DoT potency"}</th><th>{ja?"クールダウン":"Cooldown"}</th><th>{ja?"キャスト":"Cast"}</th><th>GCD / {ja?"アビリティ":"Ability"}</th><th>DoT / {ja?"非DoT":"Non-DoT"}</th><th>{ja?"確定CRIT":"Guaranteed CRIT"}</th><th>{ja?"確定DH":"Guaranteed DH"}</th><th>Reborn / Evolve</th>
       </tr></thead><tbody>{visibleActions.map(action=>{
-        const isDot=action.dotPotency>0&&action.dotDuration>0,isGcd=action.lane==="gcd",petCorrection=!!action.petCorrection,petCorrectionAvailable=canApplyPetDamageCorrection(petProfile,action.id),evolve=!!action.evolve;
+        const isDot=action.dotPotency>0&&action.dotDuration>0,isGcd=action.lane==="gcd",evolve=!!action.evolve;
         // eslint-disable-next-line @next/next/no-img-element
         return <tr key={`${action.id}:${action.name}`}><td>{action.iconPath?<img src={iconUrl(action.iconPath)} alt=""/>:<i>◆</i>}</td>
           <td><b>{action.name}</b><small>ID {action.id} · Lv.{action.level??"—"}</small></td>
@@ -177,7 +177,6 @@ function DatabasePanel({job,actions,developerMode,setDeveloperMode,config,setCon
           <td><label><input type="checkbox" checked={isDot} disabled={!developerMode} onChange={event=>update(action,event.target.checked?{dotPotency:action.dotPotency||1,dotDuration:action.dotDuration||30}:{dotPotency:0,dotDuration:0})}/><span>{isDot?"DoT":ja?"非DoT":"Non-DoT"}</span></label></td>
           <td><label className="boolean-only"><input type="checkbox" checked={action.guaranteedCrit} disabled={!developerMode} onChange={event=>update(action,{guaranteedCrit:event.target.checked})}/><span>{action.guaranteedCrit?"TRUE":"FALSE"}</span></label></td>
           <td><label className="boolean-only"><input type="checkbox" checked={action.guaranteedDh} disabled={!developerMode} onChange={event=>update(action,{guaranteedDh:event.target.checked})}/><span>{action.guaranteedDh?"TRUE":"FALSE"}</span></label></td>
-          <td><label className="boolean-only"><input type="checkbox" checked={petCorrection&&petCorrectionAvailable} disabled={!developerMode||!petCorrectionAvailable} onChange={event=>update(action,{petCorrection:event.target.checked})}/><span>{petCorrectionAvailable?(petCorrection?"TRUE":"FALSE"):petProfile?.applicability==="healing"?"HEAL":"—"}</span></label></td>
           <td><label><input type="checkbox" checked={evolve} disabled={!developerMode} onChange={event=>update(action,{evolve:event.target.checked})}/><span>{evolve?"Evolve":"Reborn"}</span></label></td>
         </tr>
       })}</tbody></table></div>

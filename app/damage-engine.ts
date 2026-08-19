@@ -3,7 +3,7 @@ import {DOT_ACTIONS,findDotAction,type DotAction} from "./calculation/dot-action
 import {GUARANTEED_ACTIONS,findGuaranteedAction,type GuaranteedAction} from "./calculation/guaranteed-actions";
 import {JOB_CONFIGS,type ActionRule,type BuffRule,type JobConfig} from "./calculation/job-configs";
 import {canApplyPetDamageCorrection,findPetCorrectionProfile,petFormulaOverrides,petMainStat} from "./calculation/pet-configs";
-import {BUNSHIN,EARTHLY_STAR,QUEEN,SPECIAL_ACTION_IDS,bunshinPotency,isSpecialControlAction,livingShadowAttacks,queenAttacks,queenPotency} from "./calculation/special-actions";
+import {BUNSHIN,EARTHLY_STAR,PET_COMMAND_DELAY,QUEEN,SPECIAL_ACTION_IDS,bunshinPotency,isDirectPetCorrectedAction,isSpecialControlAction,isSummonerPetCommand,livingShadowAttacks,queenAttacks,queenPotency} from "./calculation/special-actions";
 
 export type EngineStats = {
   level:number; weapon:number; aaInterval:number; aaSpeed:number; main:number; aaMain:number;
@@ -19,7 +19,7 @@ export type EngineRow = {
 };
 
 export type DotRule = { sourceActionId:number; key:string; potency:number; duration:number; tickInterval?:number; initialTick?:boolean };
-export type ActionDataOverride={actionId:number;potency?:number;dotPotency?:number;dotDuration?:number;recast?:number;cast?:number;lane?:"gcd"|"ability";guaranteedCrit?:boolean;guaranteedDh?:boolean;petCorrection?:boolean;evolve?:boolean};
+export type ActionDataOverride={actionId:number;potency?:number;dotPotency?:number;dotDuration?:number;recast?:number;cast?:number;lane?:"gcd"|"ability";guaranteedCrit?:boolean;guaranteedDh?:boolean;evolve?:boolean};
 export type DeveloperCalculationOverrides={dots?:DotAction[];guaranteed?:GuaranteedAction[];jobs?:Record<string,JobConfig>;actions?:Record<string,ActionDataOverride[]>};
 export type {ActionRule,BuffRule,JobConfig};
 
@@ -67,8 +67,9 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
   for(const row of rows){
     const executionBuffs=row.actionId===null?[]:activeBuffs.filter(buff=>row.time>=buff.starts&&row.time<buff.ends&&(buff.remainingStacks===undefined||buff.remainingStacks>0)&&applies(buff,row.actionId));
     const executionHaste=executionBuffs.reduce((value,buff)=>Math.max(value,buff.haste||0),config.passiveHaste||0);
-    const prepare=row.actionId===null?row.time:row.time+speedAdjustedTime(Math.max(0,row.cast||0),stats,executionHaste);
-    const damageEvent=row.modifier==="delay"||row.modifier==="downtime"?row.time+Math.max(0,row.modifierValue):prepare;
+    const actionReady=row.actionId===null?row.time:row.time+speedAdjustedTime(Math.max(0,row.cast||0),stats,executionHaste);
+    const prepare=row.actionId!==null&&isSummonerPetCommand(job,row.actionId)?actionReady+PET_COMMAND_DELAY:actionReady;
+    const damageEvent=row.modifier==="delay"||row.modifier==="downtime"?row.time+Math.max(0,row.modifierValue):actionReady;
     const detonatedStar=row.actionId===SPECIAL_ACTION_IDS.stellarDetonation?starState:undefined;
     if(detonatedStar){for(let index=scheduled.length-1;index>=0;index--)if(scheduled[index].group===detonatedStar.group)scheduled.splice(index,1);starState=undefined}
     if(row.actionId===SPECIAL_ACTION_IDS.queenOverdrive&&queenState){
@@ -89,8 +90,8 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
       if(row.actionId===SPECIAL_ACTION_IDS.stellarDetonation)effectivePotency=detonatedStar?(damageEvent-detonatedStar.placedAt>=EARTHLY_STAR.growAfter?EARTHLY_STAR.largePotency:EARTHLY_STAR.smallPotency):0;
       else if(isSpecialControlAction(row.actionId))effectivePotency=0;
       const buffs=activeBuffs.filter(buff=>prepare>=buff.starts&&prepare<buff.ends&&applies(buff,row.actionId));
-      const actionOverride=overrides.actions?.[job]?.find(item=>item.actionId===row.actionId),configuredRule=(config.actions||{})[row.actionId]||{},listedGuaranteed=findGuaranteedAction(job,row.actionId,guaranteedList),actionRule={...configuredRule,petCorrection:!!detonatedStar||(actionOverride?.petCorrection??configuredRule.petCorrection),guaranteedCrit:actionOverride?.guaranteedCrit??configuredRule.guaranteedCrit??listedGuaranteed?.crit??row.guaranteedCrit,guaranteedDh:actionOverride?.guaranteedDh??configuredRule.guaranteedDh??listedGuaranteed?.dh??row.guaranteedDh};
-      const multipliers=[actionRule.multiplier||1,...buffs.map(buff=>buff.damageMultiplier||1)].filter(value=>value!==1),candidatePetProfile=actionRule.petCorrection?findPetCorrectionProfile(job):undefined,petProfile=canApplyPetDamageCorrection(candidatePetProfile,row.actionId)?candidatePetProfile:undefined;
+      const actionOverride=overrides.actions?.[job]?.find(item=>item.actionId===row.actionId),configuredRule=(config.actions||{})[row.actionId]||{},listedGuaranteed=findGuaranteedAction(job,row.actionId,guaranteedList),actionRule={...configuredRule,guaranteedCrit:actionOverride?.guaranteedCrit??configuredRule.guaranteedCrit??listedGuaranteed?.crit??row.guaranteedCrit,guaranteedDh:actionOverride?.guaranteedDh??configuredRule.guaranteedDh??listedGuaranteed?.dh??row.guaranteedDh};
+      const multipliers=[actionRule.multiplier||1,...buffs.map(buff=>buff.damageMultiplier||1)].filter(value=>value!==1),usesPetFormula=!!detonatedStar||isDirectPetCorrectedAction(job,row.actionId),candidatePetProfile=usesPetFormula?findPetCorrectionProfile(job):undefined,petProfile=canApplyPetDamageCorrection(candidatePetProfile,row.actionId)?candidatePetProfile:undefined;
       const mainBonus=buffs.reduce((value,buff)=>value+Math.min(Math.floor(stats.main*(buff.mainStatPercent||0)),buff.mainStatCap??Infinity),0);
       const actionMain=petProfile?petMainStat(petProfile,stats.level,mainStat+mainBonus):mainStat+mainBonus,formulaOverrides=petProfile?petFormulaOverrides(petProfile,stats.level):{};
       const base=baseDamage(Math.max(0,effectivePotency),stats,job,actionMain,"direct",!!actionRule.guaranteedDh,formulaOverrides);
