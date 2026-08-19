@@ -93,7 +93,7 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(actionRoute, /potency\\s\+of/);
 
   // Post-stat-squish pet ratios stay separate from the historical 5.x values.
-  assert.match(pets, /DRK:.*numerator:80,denominator:84.*useNonTankAttack:true,provisional:true/s);
+  assert.match(pets, /DRK:.*numerator:80,denominator:86.*useNonTankAttack:true,provisional:true/s);
   assert.match(pets, /NIN:.*numerator:80,denominator:85.*applicability:"damage"/s);
   assert.match(pets, /MCH:.*numerator:80,denominator:90.*applicability:"damage"/s);
   assert.match(pets, /SMN:.*numerator:80,denominator:90.*applicability:"damage"/s);

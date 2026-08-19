@@ -17,7 +17,7 @@ export const POST_SQUISH_MODIFIER_BASE=80;
 // Living Shadow remains provisional.
 export const PET_CORRECTION_HISTORICAL_SOURCE_URL="https://www.akhmorning.com/allagan-studies/how-to-be-a-math-wizard/shadowbringers/pets-and-misc-info/";
 export const PET_CORRECTION_PROFILES:Record<string,PetCorrectionProfile>={
-  DRK:{id:"living-shadow",job:"DRK",nameJa:"影身",nameEn:"Living Shadow",kind:"clone",numerator:80,denominator:84,applicability:"damage",useNonTankAttack:true,provisional:true,sourceEra:"6.x+ post-squish"},
+  DRK:{id:"living-shadow",job:"DRK",nameJa:"影身",nameEn:"Living Shadow",kind:"clone",numerator:80,denominator:86,applicability:"damage",useNonTankAttack:true,provisional:true,sourceEra:"6.x+ post-squish"},
   NIN:{id:"bunshin",job:"NIN",nameJa:"分身",nameEn:"Bunshin",kind:"clone",numerator:80,denominator:85,applicability:"damage",sourceEra:"6.x+ post-squish"},
   MCH:{id:"automaton-queen",job:"MCH",nameJa:"オートマトン・クイーン",nameEn:"Automaton Queen",kind:"pet",numerator:80,denominator:90,applicability:"damage",sourceEra:"6.x+ post-squish"},
   SMN:{id:"summoner-pet",job:"SMN",nameJa:"召喚獣",nameEn:"Summoner pet",kind:"pet",numerator:80,denominator:90,applicability:"damage",sourceEra:"6.x+ post-squish"},
