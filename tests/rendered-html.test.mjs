@@ -35,10 +35,11 @@ test("server-renders XIV Rotation Lab", async () => {
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 });
 
-test("keeps the Allagan Studies damage invariants explicit", async () => {
-  const [formula, engine, page] = await Promise.all([
+test("keeps the Allagan Studies damage and timing invariants explicit", async () => {
+  const [formula, engine, jobs, page] = await Promise.all([
     readFile(new URL("../app/calculation/damage-formula.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/damage-engine.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/calculation/job-configs.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
   ]);
 
@@ -63,4 +64,21 @@ test("keeps the Allagan Studies damage invariants explicit", async () => {
   // Weapon tooltip AA remains a read-only reference, not a damage input.
   assert.match(page, /武器AA性能（参照値）/);
   assert.match(page, /AA内部威力/);
+
+  // SS tiers come from integer floors: displayed GCD is 2 decimals and the
+  // internal cycle adds 0.005 seconds of GCD tax. Ability lock is 0.675 sec.
+  assert.match(formula, /Math\.floor\(hasteMilliseconds\/10\)\/100/);
+  assert.match(formula, /speedAdjustedTime\(seconds,stats,haste\)\+\.005/);
+  assert.match(engine, /nextOgcd=Math\.max\(nextOgcd,row\.time\)\+\.675/);
+
+  // Job-specific haste supports timed buffs, passive traits, and consumable stacks.
+  assert.match(engine, /config\.passiveHaste\|\|0/);
+  assert.match(engine, /remainingStacks/);
+  assert.match(jobs, /JOB_CONFIGS\.WHM\.buffs\.push\(\{sourceActionId:136,duration:15,haste:20\}\)/);
+  assert.match(jobs, /JOB_CONFIGS\.MNK\.passiveHaste=20/);
+  assert.match(jobs, /JOB_CONFIGS\.NIN\.passiveHaste=15/);
+  assert.match(jobs, /JOB_CONFIGS\.SAM\.buffs\.push/);
+  assert.match(jobs, /JOB_CONFIGS\.VPR\.buffs\.push/);
+  assert.match(jobs, /JOB_CONFIGS\.BLM\.buffs\.push\(\{sourceActionId:3573,duration:20,haste:15\}\)/);
+  assert.match(jobs, /sourceActionId:34675,duration:30,haste:25,stacks:5/);
 });
