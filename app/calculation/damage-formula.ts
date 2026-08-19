@@ -2,7 +2,7 @@
 // order of Math.floor calls changes in-game damage and must be reviewed separately.
 export type FormulaStats={level:number;weapon:number;aaInterval:number;main:number;aaMain:number;crit:number;dh:number;det:number;speed:number;tenacity:number};
 export type DamageKind="direct"|"auto"|"dot";
-export type DamageFormulaOverrides={jobMod?:number;attackCoefficient?:number;trait?:number;postTraitMultiplier?:number};
+export type DamageFormulaOverrides={jobMod?:number;attackCoefficient?:number;trait?:number};
 
 export const LEVEL_MODS:Record<number,{main:number;sub:number;div:number;attack:number;tankAttack:number}>={
   70:{main:292,sub:364,div:900,attack:125,tankAttack:105},
@@ -34,7 +34,6 @@ export function baseDamage(potency:number,stats:FormulaStats,job:string,main:num
   value=Math.floor(value*(kind==="auto"?Math.floor(f.fWd*(stats.aaInterval/3)):f.fWd)/100);
   // Action Damage / Maim and Mend traits do not apply to auto-attacks.
   value=Math.floor(value*(kind==="auto"?100:f.trait)/100);
-  if(kind!=="auto"&&overrides.postTraitMultiplier!==undefined)value=Math.floor(value*overrides.postTraitMultiplier);
   if(kind==="auto")return Math.max(1,value);
   return kind==="dot"?value+1:value;
 }

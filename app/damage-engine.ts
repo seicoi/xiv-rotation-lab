@@ -2,7 +2,7 @@ import {AA_JOB_MOD,AA_USES_MAIN,autoAttackPotency,baseDamage,clamp,expectedRoll,
 import {DOT_ACTIONS,findDotAction,type DotAction} from "./calculation/dot-actions";
 import {GUARANTEED_ACTIONS,findGuaranteedAction,type GuaranteedAction} from "./calculation/guaranteed-actions";
 import {JOB_CONFIGS,type ActionRule,type BuffRule,type JobConfig} from "./calculation/job-configs";
-import {findPetCorrectionProfile,petFormulaOverrides,petMainStat} from "./calculation/pet-configs";
+import {canApplyPetDamageCorrection,findPetCorrectionProfile,petFormulaOverrides,petMainStat} from "./calculation/pet-configs";
 
 export type EngineStats = {
   level:number; weapon:number; aaInterval:number; aaSpeed:number; main:number; aaMain:number;
@@ -64,7 +64,7 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
     }else if(row.actionId!==null){
       const buffs=activeBuffs.filter(buff=>prepare>=buff.starts&&prepare<buff.ends&&applies(buff,row.actionId));
       const actionOverride=overrides.actions?.[job]?.find(item=>item.actionId===row.actionId),configuredRule=(config.actions||{})[row.actionId]||{},listedGuaranteed=findGuaranteedAction(job,row.actionId,guaranteedList),actionRule={...configuredRule,petCorrection:actionOverride?.petCorrection??configuredRule.petCorrection,guaranteedCrit:actionOverride?.guaranteedCrit??configuredRule.guaranteedCrit??listedGuaranteed?.crit??row.guaranteedCrit,guaranteedDh:actionOverride?.guaranteedDh??configuredRule.guaranteedDh??listedGuaranteed?.dh??row.guaranteedDh};
-      const multipliers=[actionRule.multiplier||1,...buffs.map(buff=>buff.damageMultiplier||1)].filter(value=>value!==1),petProfile=actionRule.petCorrection?findPetCorrectionProfile(job):undefined;
+      const multipliers=[actionRule.multiplier||1,...buffs.map(buff=>buff.damageMultiplier||1)].filter(value=>value!==1),candidatePetProfile=actionRule.petCorrection?findPetCorrectionProfile(job):undefined,petProfile=canApplyPetDamageCorrection(candidatePetProfile,row.actionId)?candidatePetProfile:undefined;
       const mainBonus=buffs.reduce((value,buff)=>value+Math.min(Math.floor(stats.main*(buff.mainStatPercent||0)),buff.mainStatCap??Infinity),0);
       const actionMain=petProfile?petMainStat(petProfile,stats.level,mainStat+mainBonus):mainStat+mainBonus,formulaOverrides=petProfile?petFormulaOverrides(petProfile,stats.level):{};
       const base=baseDamage(Math.max(0,row.potency),stats,job,actionMain,"direct",!!actionRule.guaranteedDh,formulaOverrides);

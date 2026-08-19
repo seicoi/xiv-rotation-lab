@@ -90,12 +90,16 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   // secondary values use a colon. Match the direct value before combo values.
   assert.match(actionRoute, /potency\\s\+of/);
 
-  // Published 5.x pet coefficients remain explicit and level-scoped.
-  assert.match(pets, /SMN:.*hiddenTraitMultiplier:\.8.*attackCoefficientByLevel:\{80:180\}/s);
-  assert.match(pets, /SCH:.*hiddenTraitMultiplier:\.67.*coefficient:106,denominator:304/s);
-  assert.match(pets, /DRK:.*jobModifier:100.*useNonTankAttack:true/s);
-  assert.match(pets, /AST:.*hiddenTraitMultiplier:1\.04/s);
+  // Post-stat-squish pet ratios stay separate from the historical 5.x values.
+  assert.match(pets, /DRK:.*numerator:80,denominator:84.*useNonTankAttack:true,provisional:true/s);
+  assert.match(pets, /NIN:.*numerator:80,denominator:85.*applicability:"damage"/s);
+  assert.match(pets, /SMN:.*numerator:80,denominator:90.*applicability:"damage"/s);
+  assert.match(pets, /SCH:.*numerator:80,denominator:90.*applicability:"healing"/s);
+  assert.match(pets, /AST:.*numerator:80,denominator:90.*traitOverride:104.*allowedActionIds:\[7439\]/s);
+  assert.doesNotMatch(pets, /MCH:\{/);
+  assert.match(pets, /ownerMain-ownerBase\+petBase/);
+  assert.match(pets, /profile\.numerator\*100\/POST_SQUISH_MODIFIER_BASE/);
   assert.match(engine, /petCorrection:actionOverride\?\.petCorrection\?\?configuredRule\.petCorrection/);
-  assert.match(engine, /actionRule\.petCorrection\?findPetCorrectionProfile\(job\)/);
+  assert.match(engine, /canApplyPetDamageCorrection\(candidatePetProfile,row\.actionId\)/);
   assert.match(page, /ペット／分身補正/);
 });
