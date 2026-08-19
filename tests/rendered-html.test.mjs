@@ -42,19 +42,23 @@ test("keeps the Allagan Studies damage invariants explicit", async () => {
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
   ]);
 
-  // Attack is 110 potency; Shot (BRD/MCH) is 100 potency.
-  assert.match(formula, /AA_POTENCY:Record<string,number>=\{BRD:100,MCH:100\}/);
-  assert.match(formula, /AA_POTENCY\[job\]\|\|110/);
+  // Current Attack is 90 potency; Shot (BRD/MCH) is 80 potency.
+  assert.match(formula, /AA_POTENCY:Record<string,number>=\{BRD:80,MCH:80\}/);
+  assert.match(formula, /AA_POTENCY\[job\]\|\|90/);
 
   // Action Damage / Maim and Mend traits do not modify auto attacks.
   assert.match(formula, /kind==="auto"\?100:f\.trait/);
+  assert.match(formula, /if\(kind==="auto"\)return Math\.max\(1,value\)/);
+  assert.match(formula, /if\(base<=1\)return applyMultipliers\(1,multipliers\)/);
 
   // Allagan Studies applies +1 to DoT base damage after the trait stage.
   assert.match(formula, /return kind==="dot"\?value\+1:value/);
 
   assert.match(engine, /aaPotency=autoAttackPotency\(job\)/);
+  assert.match(engine, /aaFormulaStats=\{\.\.\.stats,speed:stats\.aaSpeed\}/);
   assert.match(engine, /baseDamage\(aaPotency/);
   assert.doesNotMatch(engine, /stats\.autoAttack/);
+  assert.doesNotMatch(engine, /stats\.main\*1\.05|stats\.aaMain\*1\.05/);
 
   // Weapon tooltip AA remains a read-only reference, not a damage input.
   assert.match(page, /武器AA性能（参照値）/);
