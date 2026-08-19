@@ -22,7 +22,7 @@ export const PET_CORRECTION_PROFILES:Record<string,PetCorrectionProfile>={
   MCH:{id:"automaton-queen",job:"MCH",nameJa:"オートマトン・クイーン",nameEn:"Automaton Queen",kind:"pet",numerator:80,denominator:90,applicability:"damage",sourceEra:"6.x+ post-squish"},
   SMN:{id:"summoner-pet",job:"SMN",nameJa:"召喚獣",nameEn:"Summoner pet",kind:"pet",numerator:80,denominator:90,applicability:"damage",sourceEra:"6.x+ post-squish"},
   SCH:{id:"scholar-pet",job:"SCH",nameJa:"学者ペット",nameEn:"Scholar pet",kind:"pet",numerator:80,denominator:90,applicability:"healing",sourceEra:"6.x+ post-squish"},
-  AST:{id:"earthly-star",job:"AST",nameJa:"アーサリースター",nameEn:"Earthly Star",kind:"ground-effect",numerator:80,denominator:90,applicability:"damage",hiddenTraitMultiplier:1.04,allowedActionIds:[7439],sourceEra:"6.x+ post-squish"},
+  AST:{id:"earthly-star",job:"AST",nameJa:"アーサリースター",nameEn:"Earthly Star",kind:"ground-effect",numerator:80,denominator:90,applicability:"damage",hiddenTraitMultiplier:1.04,allowedActionIds:[7439,8324],sourceEra:"6.x+ post-squish"},
 };
 
 export const findPetCorrectionProfile=(job:string)=>PET_CORRECTION_PROFILES[job];
