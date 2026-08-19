@@ -74,6 +74,8 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   // Job-specific haste supports timed buffs, passive traits, and consumable stacks.
   assert.match(engine, /config\.passiveHaste\|\|0/);
   assert.match(engine, /remainingStacks/);
+  assert.match(page, /milliseconds%60000\/1000/);
+  assert.match(page, /seconds\.toFixed\(3\)\.padStart\(6,"0"\)/);
   assert.match(jobs, /JOB_CONFIGS\.WHM\.buffs\.push\(\{sourceActionId:136,duration:15,haste:20\}\)/);
   assert.match(jobs, /JOB_CONFIGS\.MNK\.passiveHaste=20/);
   assert.match(jobs, /JOB_CONFIGS\.NIN\.passiveHaste=15/);
