@@ -37,7 +37,7 @@ const STAT_LABELS:Record<keyof Stats,string>={level:"レベル",weapon:"武器�
 const STAT_LABELS_EN:Record<keyof Stats,string>={level:"Level",weapon:"Weapon damage",aaInterval:"Auto-attack delay (sec)",aaSpeed:"AA Skill Speed",main:"Main attribute",aaMain:"AA STR / DEX",crit:"Critical Hit",dh:"Direct Hit",det:"Determination",speed:"Action Skill / Spell Speed",tenacity:"Tenacity",gcd:"Base GCD",potionPercent:"Potion increase (%)",potionCap:"Potion increase cap",simulationIterations:"Simulation iterations"};
 const newSheet=(job:string,index=1):Sheet=>({id:crypto.randomUUID(),name:index===1?"本番回し":`比較案 ${index}`,job,rows:[]});
 const STATIC_ACTION_DATA_BASE=process.env.NEXT_PUBLIC_ACTION_DATA_BASE?.replace(/\/$/,"")||"";
-const LOG_CLIENT_ID=process.env.NEXT_PUBLIC_FFLOGS_CLIENT_ID||"019f7ed6-39d0-726d-80a4-8a4e413d26f3";
+const LOG_CLIENT_ID=process.env.NEXT_PUBLIC_FFLOGS_CLIENT_ID||"01a0219a-7b72-70bf-8e4d-e04dbe54ac70";
 const iconUrl=(path:string)=>path?`https://v2.xivapi.com/api/asset?path=${encodeURIComponent(path)}&format=png`:"";
 const timeText=(n:number)=>{const sign=n<0?"-":"",milliseconds=Math.round(Math.abs(n)*1000),minutes=Math.floor(milliseconds/60000),seconds=milliseconds%60000/1000;return `${sign}${String(minutes).padStart(2,"0")}:${seconds.toFixed(3).padStart(6,"0")}`};
 const decimal=(n:number)=>Number.isFinite(n)?n.toFixed(3).replace(/0+$/,"").replace(/\.$/,""):"0";

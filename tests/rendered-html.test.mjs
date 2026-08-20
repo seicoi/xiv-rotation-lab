@@ -143,4 +143,6 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(page, /event\.timestamp-logContext\.fight\.startTime/);
   assert.match(page, /actionMap\.get\(Number\(event\.abilityGameID\)\)/);
   assert.match(page, /setJob\(targetJob\)/);
+  assert.match(page, /01a0219a-7b72-70bf-8e4d-e04dbe54ac70/);
+  assert.doesNotMatch(page, /019f7ed6-39d0-726d-80a4-8a4e413d26f3/);
 });
