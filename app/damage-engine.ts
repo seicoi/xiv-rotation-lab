@@ -13,7 +13,7 @@ export type EngineStats = {
 
 export type EngineRow = {
   id:string; time:number; actionId:number|null; name:string; lane:"gcd"|"ability";
-  potency:number; cast:number; recast:number; modifier:"none"|"delay"|"downtime"|"pre"|"potion";
+  potency:number; cast:number; recast:number; gcdRecast?:number; modifier:"none"|"delay"|"downtime"|"pre"|"potion";
   modifierValue:number; specialValue?:number;
   dotPotency?:number; dotDuration?:number; guaranteedCrit?:boolean; guaranteedDh?:boolean;
 };
@@ -100,7 +100,7 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
       const echoPotency=bunshinState&&damageEvent<bunshinState.ends&&bunshinState.stacks>0?bunshinPotency(row.actionId):0;
       if(echoPotency>0){const profile=findPetCorrectionProfile("NIN")!,echoMain=petMainStat(profile,stats.level,mainStat+mainBonus),echoBase=baseDamage(echoPotency,stats,job,echoMain,"direct",false,petFormulaOverrides(profile,stats.level)),echoExpected=expectedRoll(echoBase,stats,false,false,multipliers);let echoSim=0;for(let i=0;i<iterations;i++)echoSim+=simulatedRoll(echoBase,stats,random,false,false,multipliers);echoSim/=iterations;specialTotal+=echoExpected;total+=echoExpected;simTotal+=echoSim;sumPotency+=echoPotency;specialBreakdown[bunshinState.sourceName]=(specialBreakdown[bunshinState.sourceName]||0)+echoExpected;bunshinState.stacks--}
       total+=rowDamage;simTotal+=rowSim;sumPotency+=Math.max(0,effectivePotency);
-      const recast=gcdCycleTime(row.recast||stats.gcd,stats,executionHaste);
+      const recast=gcdCycleTime(row.gcdRecast||stats.gcd,stats,executionHaste);
       if(row.lane==="gcd")nextGcd=Math.max(nextGcd,row.time)+recast;nextOgcd=Math.max(nextOgcd,row.time)+.675;
       const listedDot=findDotAction(job,row.actionId,dotList),dotRule=actionOverride?(actionOverride.dotPotency&&actionOverride.dotDuration?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:actionOverride.dotPotency,duration:actionOverride.dotDuration}:undefined):listedDot?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:listedDot.potency,duration:listedDot.duration,tickInterval:listedDot.tickInterval,initialTick:listedDot.initialTick}:(row.dotPotency&&row.dotDuration?{sourceActionId:row.actionId,key:`action:${row.actionId}`,potency:row.dotPotency,duration:row.dotDuration}:undefined);
       if(dotRule){const tickInterval=dotRule.tickInterval||3,dotBase=baseDamage(dotRule.potency,stats,job,actionMain,"dot",!!actionRule.guaranteedDh,formulaOverrides),nextTick=(Math.floor(damageEvent/tickInterval)+1)*tickInterval;dots.set(dotRule.key,{...dotRule,sourceName:row.name,nextTick,ends:damageEvent+dotRule.duration,base:dotBase,multipliers,crit:!!actionRule.guaranteedCrit,dh:!!actionRule.guaranteedDh});if(dotRule.initialTick&&targetable(damageEvent,downtimes)){const initialExpected=expectedRoll(dotBase,stats,actionRule.guaranteedCrit,actionRule.guaranteedDh,multipliers);let initialSim=0;for(let i=0;i<iterations;i++)initialSim+=simulatedDotRoll(dotBase,stats,random,actionRule.guaranteedCrit,actionRule.guaranteedDh,multipliers);initialSim/=iterations;rowDotDamage+=initialExpected;rowDotSim+=initialSim;rowDotPotency+=dotRule.potency;dotTotal+=initialExpected;total+=initialExpected;simTotal+=initialSim;sumPotency+=dotRule.potency;dotBreakdown[row.name]=(dotBreakdown[row.name]||0)+initialExpected}}
