@@ -74,6 +74,9 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(formula, /Math\.floor\(hasteMilliseconds\/10\)\/100/);
   assert.match(formula, /speedAdjustedTime\(seconds,stats,haste\)\+\.005/);
   assert.match(engine, /nextOgcd=Math\.max\(nextOgcd,row\.time\)\+\.675/);
+  assert.match(actionRoute, /AdditionalCooldownGroup/);
+  assert.match(actionRoute, /cooldownGroup===58\?recast:additionalCooldownGroup===58\?0:recast/);
+  assert.match(engine, /row\.gcdRecast\|\|stats\.gcd/);
 
   // Job-specific haste supports timed buffs, passive traits, and consumable stacks.
   assert.match(engine, /config\.passiveHaste\|\|0/);
