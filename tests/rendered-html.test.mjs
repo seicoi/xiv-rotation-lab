@@ -36,7 +36,7 @@ test("server-renders XIV Rotation Lab", async () => {
 });
 
 test("keeps the Allagan Studies damage and timing invariants explicit", async () => {
-  const [formula, engine, jobs, pets, specials, dots, page, actionRoute] = await Promise.all([
+  const [formula, engine, jobs, pets, specials, dots, page, actionRoute, logClient] = await Promise.all([
     readFile(new URL("../app/calculation/damage-formula.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/damage-engine.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/calculation/job-configs.ts", import.meta.url), "utf8"),
@@ -45,6 +45,7 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
     readFile(new URL("../app/calculation/dot-actions.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/actions/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/fflogs-client.ts", import.meta.url), "utf8"),
   ]);
 
   // Current Attack is 90 potency; Shot (BRD/MCH) is 80 potency.
@@ -130,4 +131,16 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(dots, /actionId:2270.*initialTick:true/);
   assert.match(dots, /actionId:25837.*initialTick:true/);
   assert.match(page, /<BatteryInput value=\{row\.specialValue\?\?100\}/);
+
+  // Combat-report import follows Timeline Studio's complete PKCE + GraphQL
+  // workflow and uses every Cast-event page, rather than accepting only a
+  // preformatted four-row fixture.
+  assert.match(logClient, /code_challenge_method:"S256"/);
+  assert.match(logClient, /dataType: Casts/);
+  assert.match(logClient, /limit: 10000/);
+  assert.match(logClient, /while\(startTime!==null\)/);
+  assert.match(page, /fetchAllLogCastEvents/);
+  assert.match(page, /event\.timestamp-logContext\.fight\.startTime/);
+  assert.match(page, /actionMap\.get\(Number\(event\.abilityGameID\)\)/);
+  assert.match(page, /setJob\(targetJob\)/);
 });
