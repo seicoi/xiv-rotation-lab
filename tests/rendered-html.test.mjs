@@ -62,10 +62,13 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(formula, /return kind==="dot"\?value\+1:value/);
 
   assert.match(engine, /aaPotency=autoAttackPotency\(job\)/);
-  assert.match(engine, /aaFormulaStats=\{\.\.\.stats,speed:stats\.aaSpeed\}/);
+  assert.match(engine, /aaFormulaStats=\{\.\.\.stats,main:mainStat,aaMain,speed:stats\.aaSpeed\}/);
   assert.match(engine, /baseDamage\(aaPotency/);
   assert.doesNotMatch(engine, /stats\.autoAttack/);
-  assert.doesNotMatch(engine, /stats\.main\*1\.05|stats\.aaMain\*1\.05/);
+  assert.match(formula, /FULL_PARTY_MAIN_STAT_BONUS=\.05/);
+  assert.match(formula, /Math\.floor\(Math\.max\(0,value\)\*\(1\+FULL_PARTY_MAIN_STAT_BONUS\)\)/);
+  assert.match(engine, /mainStat=fullPartyMainStat\(stats\.main\)/);
+  assert.match(engine, /aaMain=fullPartyMainStat\(aaUsesMain\?stats\.main:stats\.aaMain\)/);
 
   // Weapon tooltip AA remains a read-only reference, not a damage input.
   assert.match(page, /武器AA性能（参照値）/);

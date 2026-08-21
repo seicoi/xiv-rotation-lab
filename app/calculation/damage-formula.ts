@@ -5,6 +5,11 @@ export type DamageKind="direct"|"auto"|"dot";
 export type DamageFormulaOverrides={jobMod?:number;attackCoefficient?:number;trait?:number;postTraitMultiplier?:number};
 export type RollRateBonuses={critRate?:number;dhRate?:number};
 
+// A standard full party contains all five role categories. The game increases
+// STR/DEX/INT/MND by 1% per represented role, up to 5%.
+export const FULL_PARTY_MAIN_STAT_BONUS=.05;
+export const fullPartyMainStat=(value:number)=>Math.floor(Math.max(0,value)*(1+FULL_PARTY_MAIN_STAT_BONUS));
+
 export const LEVEL_MODS:Record<number,{main:number;sub:number;div:number;attack:number;tankAttack:number}>={
   70:{main:292,sub:364,div:900,attack:125,tankAttack:105},
   80:{main:340,sub:380,div:1300,attack:165,tankAttack:115},

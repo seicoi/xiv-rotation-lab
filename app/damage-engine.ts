@@ -1,4 +1,4 @@
-import {AA_JOB_MOD,AA_USES_MAIN,autoAttackPotency,baseDamage,clamp,expectedRoll,gcdCycleTime,simulatedDotRoll,simulatedRoll,speedAdjustedTime,type RollRateBonuses} from "./calculation/damage-formula";
+import {AA_JOB_MOD,AA_USES_MAIN,autoAttackPotency,baseDamage,clamp,expectedRoll,fullPartyMainStat,gcdCycleTime,simulatedDotRoll,simulatedRoll,speedAdjustedTime,type RollRateBonuses} from "./calculation/damage-formula";
 import {DOT_ACTIONS,findDotAction,type DotAction} from "./calculation/dot-actions";
 import {GUARANTEED_ACTIONS,findGuaranteedAction,type GuaranteedAction} from "./calculation/guaranteed-actions";
 import {JOB_CONFIGS,type ActionRule,type BuffRule,type JobConfig} from "./calculation/job-configs";
@@ -53,7 +53,7 @@ function hashSeed(rows:EngineRow[],stats:EngineStats,job:string){
 function rng(seed:number){let state=seed>>>0;return()=>{state^=state<<13;state^=state>>>17;state^=state<<5;return(state>>>0)/4294967296}}
 export {speedAdjustedTime};
 export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,job:string,overrides:DeveloperCalculationOverrides={},options:DamageCalculationOptions={}):EngineComputedRow<T>[] {
-  const config=(overrides.jobs||JOB_CONFIGS)[job]||{buffs:[],actions:{}},dotList=overrides.dots||DOT_ACTIONS,guaranteedList=overrides.guaranteed||GUARANTEED_ACTIONS,iterations=clamp(Math.round(stats.simulationIterations||1000),1,10000),simulate=options.simulate!==false,mainStat=stats.main,aaUsesMain=AA_USES_MAIN.has(job),aaMain=aaUsesMain?stats.main:stats.aaMain,aaPotency=autoAttackPotency(job),aaFormulaStats={...stats,speed:stats.aaSpeed};
+  const config=(overrides.jobs||JOB_CONFIGS)[job]||{buffs:[],actions:{}},dotList=overrides.dots||DOT_ACTIONS,guaranteedList=overrides.guaranteed||GUARANTEED_ACTIONS,iterations=clamp(Math.round(stats.simulationIterations||1000),1,10000),simulate=options.simulate!==false,mainStat=fullPartyMainStat(stats.main),aaUsesMain=AA_USES_MAIN.has(job),aaMain=fullPartyMainStat(aaUsesMain?stats.main:stats.aaMain),aaPotency=autoAttackPotency(job),aaFormulaStats={...stats,main:mainStat,aaMain,speed:stats.aaSpeed};
   const downtimes=mergeDowntimes(rows.filter(row=>row.modifier==="downtime").map(row=>({start:row.time,end:row.time+Math.max(0,row.modifierValue)})));
   const random=rng(hashSeed(rows,stats,job)),simulationTotals=simulate?new Float64Array(iterations):null;
   const directSimulation=(base:number,formulaStats:EngineStats,crit:boolean,dh:boolean,multipliers:number[],rateBonuses:RollRateBonuses={})=>{if(!simulationTotals)return expectedRoll(base,formulaStats,crit,dh,multipliers,rateBonuses);let sampled=0;for(let i=0;i<iterations;i++){const value=simulatedRoll(base,formulaStats,random,crit,dh,multipliers,rateBonuses);simulationTotals[i]+=value;sampled+=value}return sampled/iterations};
@@ -66,7 +66,7 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
     while(scheduled.length&&scheduled[0].time<=until){
       const event=scheduled.shift()!;if(!targetable(event.time,downtimes))continue;
       const buffs=activeBuffs.filter(buff=>event.time>=buff.starts&&event.time<buff.ends&&applies(buff,event.actionId,0,"ability")),multipliers=buffs.map(buff=>buff.damageMultiplier||1).filter(value=>value!==1),rateBonuses=buffRateBonuses(buffs);
-      const mainBonus=buffs.reduce((value,buff)=>value+Math.min(Math.floor(stats.main*(buff.mainStatPercent||0)),buff.mainStatCap??Infinity),0),profile=findPetCorrectionProfile(job);
+      const mainBonus=buffs.reduce((value,buff)=>value+Math.min(Math.floor(mainStat*(buff.mainStatPercent||0)),buff.mainStatCap??Infinity),0),profile=findPetCorrectionProfile(job);
       const actionMain=profile?petMainStat(profile,stats.level,mainStat+mainBonus):mainStat+mainBonus,formulaOverrides=profile?petFormulaOverrides(profile,stats.level):{};
       const base=baseDamage(event.potency,stats,job,actionMain,"direct",false,formulaOverrides),eventExpected=expectedRoll(base,stats,false,false,multipliers,rateBonuses),eventSim=directSimulation(base,stats,false,false,multipliers,rateBonuses);
       expected+=eventExpected;simulated+=eventSim;potency+=event.potency;specialBreakdown[event.sourceName]=(specialBreakdown[event.sourceName]||0)+eventExpected;
@@ -102,7 +102,7 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
       const buffs=activeBuffs.filter(buff=>prepare>=buff.starts&&prepare<buff.ends&&applies(buff,row.actionId,row.attackTypeId,row.lane));
       const actionOverride=overrides.actions?.[job]?.find(item=>item.actionId===row.actionId),configuredRule=(config.actions||{})[row.actionId]||{},listedGuaranteed=findGuaranteedAction(job,row.actionId,guaranteedList),baseGuaranteedCrit=actionOverride?.guaranteedCrit??configuredRule.guaranteedCrit??listedGuaranteed?.crit??row.guaranteedCrit,baseGuaranteedDh=actionOverride?.guaranteedDh??configuredRule.guaranteedDh??listedGuaranteed?.dh??row.guaranteedDh,actionRule={...configuredRule,guaranteedCrit:baseGuaranteedCrit||buffs.some(buff=>buff.guaranteedCrit),guaranteedDh:baseGuaranteedDh||buffs.some(buff=>buff.guaranteedDh)};
       const jobMultipliers=job==="BLM"?blackMageDamageMultipliers(blackMageState,prepare,stats.level,row.aspectId||0,row.attackTypeId||0):[],multipliers=[actionRule.multiplier||1,...buffs.map(buff=>buff.damageMultiplier||1),...jobMultipliers].filter(value=>value!==1),rateBonuses=buffRateBonuses(buffs),usesPetFormula=!!detonatedStar||isDirectPetCorrectedAction(job,row.actionId),candidatePetProfile=usesPetFormula?findPetCorrectionProfile(job):undefined,petProfile=canApplyPetDamageCorrection(candidatePetProfile,row.actionId)?candidatePetProfile:undefined;
-      const mainBonus=buffs.reduce((value,buff)=>value+Math.min(Math.floor(stats.main*(buff.mainStatPercent||0)),buff.mainStatCap??Infinity),0);
+      const mainBonus=buffs.reduce((value,buff)=>value+Math.min(Math.floor(mainStat*(buff.mainStatPercent||0)),buff.mainStatCap??Infinity),0);
       const actionMain=petProfile?petMainStat(petProfile,stats.level,mainStat+mainBonus):mainStat+mainBonus,formulaOverrides=petProfile?petFormulaOverrides(petProfile,stats.level):{};
       const base=baseDamage(Math.max(0,effectivePotency),stats,job,actionMain,"direct",!!actionRule.guaranteedDh,formulaOverrides);
       rowDamage=expectedRoll(base,stats,actionRule.guaranteedCrit,actionRule.guaranteedDh,multipliers,rateBonuses);
@@ -128,7 +128,7 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
       const blocked=downtimes.find(item=>nextAa>=item.start&&nextAa<item.end);
       if(blocked){nextAa=blocked.end;continue}
       const tickTime=nextAa,buffs=activeBuffs.filter(buff=>tickTime>=buff.starts&&tickTime<buff.ends&&(buff.remainingStacks===undefined||buff.remainingStacks>0)&&applies(buff,-1,0,"auto"));
-      const multipliers=buffs.map(buff=>buff.damageMultiplier||1).filter(value=>value!==1),rateBonuses=buffRateBonuses(buffs),mainBonus=aaUsesMain?buffs.reduce((value,buff)=>value+Math.min(Math.floor(stats.main*(buff.mainStatPercent||0)),buff.mainStatCap??Infinity),0):0;
+      const multipliers=buffs.map(buff=>buff.damageMultiplier||1).filter(value=>value!==1),rateBonuses=buffRateBonuses(buffs),mainBonus=aaUsesMain?buffs.reduce((value,buff)=>value+Math.min(Math.floor(mainStat*(buff.mainStatPercent||0)),buff.mainStatCap??Infinity),0):0;
       const aaBase=baseDamage(aaPotency,aaFormulaStats,job,aaMain+mainBonus,"auto",false,{jobMod:AA_JOB_MOD[job]||100});aaDamage+=expectedRoll(aaBase,aaFormulaStats,false,false,multipliers,rateBonuses);
       aaSim+=directSimulation(aaBase,aaFormulaStats,false,false,multipliers,rateBonuses);
       const aaHaste=buffs.reduce((value,buff)=>Math.max(value,buff.haste||0),config.passiveHaste||0),interval=Math.max(.01,speedAdjustedTime(stats.aaInterval,aaFormulaStats,aaHaste));
