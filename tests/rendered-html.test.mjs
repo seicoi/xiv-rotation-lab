@@ -56,7 +56,8 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   // stable identifiers. Internal implementation names remain testable below.
   assert.doesNotMatch(page, /イベントログ|Event log|戦闘レポート|Combat report|Castイベント|アクションDB|ACTION DATABASE|ID \{action\.id\}|www\.fflogs\.com\/reports/i);
   assert.doesNotMatch(readme, /actionId|アクションID|FFLogs|XIVAPI/i);
-  assert.match(workflow, /^name: Update\s+run-name: Update/m);
+  assert.match(workflow, /^name: Deploy GitHub Pages/m);
+  assert.doesNotMatch(workflow, /^run-name:/m);
 
   // Current Attack is 90 potency; Shot (BRD/MCH) is 80 potency.
   assert.match(formula, /AA_POTENCY:Record<string,number>=\{BRD:80,MCH:80\}/);
