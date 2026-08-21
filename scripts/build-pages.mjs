@@ -24,7 +24,7 @@ async function request(path) {
 }
 
 async function writeActionData(job, locale) {
-  const response = await request(`/api/actions?schema=2&job=${job}&level=100&language=${locale}`);
+  const response = await request(`/api/actions?schema=3&job=${job}&level=100&language=${locale}`);
   if (!response.ok) {
     throw new Error(`Could not build ${job}/${locale}: ${response.status} ${await response.text()}`);
   }
