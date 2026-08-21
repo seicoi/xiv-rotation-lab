@@ -36,13 +36,14 @@ test("server-renders XIV Rotation Lab", async () => {
 });
 
 test("keeps the Allagan Studies damage and timing invariants explicit", async () => {
-  const [formula, engine, jobs, pets, specials, dots, page, actionRoute, logClient] = await Promise.all([
+  const [formula, engine, jobs, pets, specials, dots, blackMage, page, actionRoute, logClient] = await Promise.all([
     readFile(new URL("../app/calculation/damage-formula.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/damage-engine.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/calculation/job-configs.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/calculation/pet-configs.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/calculation/special-actions.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/calculation/dot-actions.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/calculation/black-mage-config.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/actions/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/fflogs-client.ts", import.meta.url), "utf8"),
@@ -55,7 +56,7 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   // Action Damage / Maim and Mend traits do not modify auto attacks.
   assert.match(formula, /kind==="auto"\?100:f\.trait/);
   assert.match(formula, /if\(kind==="auto"\)return Math\.max\(1,value\)/);
-  assert.match(formula, /if\(base<=1\)return applyMultipliers\(1,multipliers\)/);
+  assert.match(formula, /if\(base<=1\)return applyMultipliers\(1,allMultipliers\)/);
 
   // Allagan Studies applies +1 to DoT base damage after the trait stage.
   assert.match(formula, /return kind==="dot"\?value\+1:value/);
@@ -85,6 +86,18 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(page, /milliseconds%60000\/1000/);
   assert.match(page, /seconds\.toFixed\(3\)\.padStart\(6,"0"\)/);
   assert.match(jobs, /JOB_CONFIGS\.WHM\.buffs\.push\(\{sourceActionId:136,duration:15,haste:20\}\)/);
+  assert.match(jobs, /JOB_CONFIGS\.GNB\.buffs\.push\(\{sourceActionId:16138,duration:20,damageMultiplier:1\.2\}\)/);
+  assert.match(jobs, /sourceActionId:7436,duration:20,critRateBonus:\.1/);
+  assert.match(jobs, /sourceActionId:36958,key:"kunais-bane",duration:15,damageMultiplier:1\.1/);
+  assert.match(jobs, /sourceActionId:118,duration:20,dhRateBonus:\.2/);
+  assert.match(jobs, /sourceActionId:7520,duration:20,damageMultiplier:1\.1,attackTypeIds:\[5\]/);
+  assert.match(engine, /buffRateBonuses/);
+  assert.match(engine, /rateBonuses=buffRateBonuses/);
+  assert.match(jobs, /sourceActionId:2876,duration:5,guaranteedCrit:true,guaranteedDh:true/);
+  assert.match(engine, /buffs\.some\(buff=>buff\.guaranteedCrit\)/);
+  assert.match(blackMage, /level>=96\?1\.27:level>=86\?1\.22:level>=78\?1\.15:level>=70\?1\.1/);
+  assert.match(blackMage, /\[1,1\.4,1\.6,1\.8\]/);
+  assert.match(engine, /blackMageDamageMultipliers/);
   assert.match(jobs, /JOB_CONFIGS\.MNK\.passiveHaste=20/);
   assert.match(jobs, /JOB_CONFIGS\.NIN\.passiveHaste=15/);
   assert.match(jobs, /JOB_CONFIGS\.SAM\.buffs\.push/);
@@ -95,6 +108,11 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   // English descriptions use "a potency of 220" while Japanese and some
   // secondary values use a colon. Match the direct value before combo values.
   assert.match(actionRoute, /potency\\s\+of/);
+  assert.match(actionRoute, /ActionCombo,PreservesCombo,Aspect/);
+  assert.match(actionRoute, /function extractComboPotency/);
+  assert.match(engine, /comboSucceeded/);
+  assert.match(engine, /comboExpires=actionReady\+30/);
+  assert.match(page, /migrateDeveloperConfig/);
 
   // Post-stat-squish pet ratios stay separate from the historical 5.x values.
   assert.match(pets, /DRK:.*numerator:80,denominator:86.*useNonTankAttack:true,provisional:true/s);

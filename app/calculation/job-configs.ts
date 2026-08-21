@@ -1,15 +1,61 @@
-export type BuffRule={sourceActionId:number;duration:number;activationDelay?:number;damageMultiplier?:number;haste?:number;stacks?:number;mainStatPercent?:number;mainStatCap?:number;include?:number[];exclude?:number[]};
+export type BuffRule={sourceActionId:number;key?:string;duration:number;activationDelay?:number;damageMultiplier?:number;critRateBonus?:number;dhRateBonus?:number;guaranteedCrit?:boolean;guaranteedDh?:boolean;guaranteesDot?:boolean;haste?:number;stacks?:number;consumeOnUse?:boolean;mainStatPercent?:number;mainStatCap?:number;include?:number[];exclude?:number[];lanes?:Array<"gcd"|"ability"|"auto">;attackTypeIds?:number[];requiresCombo?:boolean;requiresSelfTarget?:boolean;extendDuration?:boolean;maxDuration?:number;extendExistingKey?:string;extendBy?:number};
 export type ActionRule={guaranteedCrit?:boolean;guaranteedDh?:boolean;multiplier?:number};
 export type JobConfig={buffs:BuffRule[];actions:Record<number,ActionRule>;passiveHaste?:number};
 const JOBS=["PLD","WAR","DRK","GNB","WHM","SCH","AST","SGE","MNK","DRG","NIN","SAM","RPR","VPR","BRD","MCH","DNC","BLM","SMN","RDM","PCT"];
 export const JOB_CONFIGS:Record<string,JobConfig>=Object.fromEntries(JOBS.map(job=>[job,{buffs:[],actions:{}}]));
 JOB_CONFIGS.PLD.buffs.push({sourceActionId:20,duration:20,damageMultiplier:1.25});
+JOB_CONFIGS.WAR.buffs.push(
+  {sourceActionId:45,key:"surging-tempest",duration:30,damageMultiplier:1.1,requiresCombo:true,extendDuration:true,maxDuration:60},
+  {sourceActionId:16462,key:"surging-tempest",duration:30,damageMultiplier:1.1,requiresCombo:true,extendDuration:true,maxDuration:60},
+  {sourceActionId:38,key:"berserk-guarantee",duration:15,guaranteedCrit:true,guaranteedDh:true,stacks:3,consumeOnUse:true,lanes:["gcd"]},
+  {sourceActionId:38,key:"berserk-surging-tempest",duration:0,extendExistingKey:"surging-tempest",extendBy:10,maxDuration:60},
+  {sourceActionId:7389,key:"inner-release-guarantee",duration:15,guaranteedCrit:true,guaranteedDh:true,stacks:3,consumeOnUse:true,include:[3549,3550]},
+  {sourceActionId:7389,key:"inner-release-surging-tempest",duration:0,extendExistingKey:"surging-tempest",extendBy:10,maxDuration:60},
+);
+JOB_CONFIGS.DRK.buffs.push(
+  ...[16466,16467,16469,16470].map(sourceActionId=>({sourceActionId,key:"darkside",duration:30,damageMultiplier:1.1,extendDuration:true,maxDuration:60})),
+);
+JOB_CONFIGS.GNB.buffs.push({sourceActionId:16138,duration:20,damageMultiplier:1.2});
+JOB_CONFIGS.AST.buffs.push(
+  {sourceActionId:16552,duration:20,damageMultiplier:1.06},
+  {sourceActionId:37023,duration:15,damageMultiplier:1.03,requiresSelfTarget:true},
+  {sourceActionId:37026,duration:15,damageMultiplier:1.06,requiresSelfTarget:true},
+);
 JOB_CONFIGS.WHM.buffs.push({sourceActionId:136,duration:15,haste:20});
+JOB_CONFIGS.SCH.buffs.push({sourceActionId:7436,duration:20,critRateBonus:.1});
 JOB_CONFIGS.MNK.passiveHaste=20;
+JOB_CONFIGS.MNK.buffs.push(
+  {sourceActionId:7395,duration:20,damageMultiplier:1.15},
+  {sourceActionId:7396,duration:20,damageMultiplier:1.05},
+);
+JOB_CONFIGS.DRG.buffs.push(
+  {sourceActionId:85,duration:20,damageMultiplier:1.1},
+  {sourceActionId:87,key:"power-surge",duration:30,damageMultiplier:1.1,requiresCombo:true},
+  {sourceActionId:7397,key:"power-surge",duration:30,damageMultiplier:1.1,requiresCombo:true},
+  {sourceActionId:36955,key:"power-surge",duration:30,damageMultiplier:1.1,requiresCombo:true},
+  {sourceActionId:3555,duration:20,damageMultiplier:1.15},
+  {sourceActionId:3557,duration:20,critRateBonus:.1},
+  {sourceActionId:83,duration:5,guaranteedCrit:true,stacks:1,consumeOnUse:true,lanes:["gcd"]},
+);
+JOB_CONFIGS.NIN.buffs.push(
+  {sourceActionId:2248,key:"mug",duration:20,damageMultiplier:1.05},
+  {sourceActionId:36957,key:"dokumori",duration:20,damageMultiplier:1.05},
+  {sourceActionId:2258,key:"kunais-bane",duration:15,damageMultiplier:1.1},
+  {sourceActionId:36958,key:"kunais-bane",duration:15,damageMultiplier:1.1},
+);
 JOB_CONFIGS.NIN.passiveHaste=15;
+JOB_CONFIGS.SAM.buffs.push(
+  {sourceActionId:7478,key:"fugetsu",duration:40,damageMultiplier:1.13,requiresCombo:true},
+  {sourceActionId:7484,key:"fugetsu",duration:40,damageMultiplier:1.13,requiresCombo:true},
+);
 JOB_CONFIGS.SAM.buffs.push(
   {sourceActionId:7479,duration:40,haste:13},
   {sourceActionId:7485,duration:40,haste:13},
+);
+JOB_CONFIGS.RPR.buffs.push(
+  {sourceActionId:24378,key:"deaths-design",duration:30,damageMultiplier:1.1,extendDuration:true,maxDuration:60},
+  {sourceActionId:24379,key:"deaths-design",duration:30,damageMultiplier:1.1,extendDuration:true,maxDuration:60},
+  {sourceActionId:24405,duration:20,damageMultiplier:1.03},
 );
 JOB_CONFIGS.VPR.buffs.push(
   {sourceActionId:34609,duration:40,haste:15},
@@ -17,8 +63,33 @@ JOB_CONFIGS.VPR.buffs.push(
   {sourceActionId:34622,duration:40,haste:15},
   {sourceActionId:34625,duration:40,haste:15},
 );
+JOB_CONFIGS.VPR.buffs.push(
+  {sourceActionId:34608,key:"hunters-instinct",duration:40,damageMultiplier:1.1},
+  {sourceActionId:34616,key:"hunters-instinct",duration:40,damageMultiplier:1.1},
+  {sourceActionId:34621,key:"hunters-instinct",duration:40,damageMultiplier:1.1},
+  {sourceActionId:34624,key:"hunters-instinct",duration:40,damageMultiplier:1.1},
+);
 JOB_CONFIGS.BLM.buffs.push({sourceActionId:3573,duration:20,haste:15});
+JOB_CONFIGS.BRD.buffs.push(
+  {sourceActionId:101,duration:20,damageMultiplier:1.15},
+  {sourceActionId:114,duration:45,damageMultiplier:1.01},
+  {sourceActionId:116,duration:45,dhRateBonus:.03},
+  {sourceActionId:118,duration:20,dhRateBonus:.2},
+  {sourceActionId:3559,duration:45,critRateBonus:.02},
+  {sourceActionId:25785,duration:20,damageMultiplier:1.06},
+);
+JOB_CONFIGS.DNC.buffs.push(
+  {sourceActionId:16003,key:"standard-finish",duration:60,damageMultiplier:1.05},
+  {sourceActionId:36984,key:"standard-finish",duration:60,damageMultiplier:1.05},
+  {sourceActionId:16004,key:"technical-finish",duration:20,damageMultiplier:1.05},
+  {sourceActionId:16011,duration:20,critRateBonus:.2,dhRateBonus:.2},
+);
+JOB_CONFIGS.SMN.buffs.push({sourceActionId:25801,duration:20,damageMultiplier:1.05});
+JOB_CONFIGS.MCH.buffs.push({sourceActionId:2876,duration:5,guaranteedCrit:true,guaranteedDh:true,stacks:1,consumeOnUse:true,lanes:["gcd"],exclude:[36982]});
+// Embolden's personal 10% bonus applies to magic damage only. XIVAPI AttackType 5 is magic.
+JOB_CONFIGS.RDM.buffs.push({sourceActionId:7520,duration:20,damageMultiplier:1.1,attackTypeIds:[5]});
 JOB_CONFIGS.PCT.buffs.push({
   sourceActionId:34675,duration:30,haste:25,stacks:5,
   include:[34650,34651,34652,34653,34654,34655,34656,34657,34658,34659,34660,34661,34681,34682],
 });
+JOB_CONFIGS.PCT.buffs.push({sourceActionId:34675,key:"starry-muse-damage",duration:20,damageMultiplier:1.05});
