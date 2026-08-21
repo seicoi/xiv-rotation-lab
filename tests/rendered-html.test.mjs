@@ -31,12 +31,13 @@ test("server-renders XIV Rotation Lab", async () => {
   const html = await response.text();
   assert.match(html, /<title>XIV Rotation Lab<\/title>/i);
   assert.match(html, /タイムライン/);
-  assert.match(html, /データベース/);
+  assert.match(html, /設定/);
+  assert.doesNotMatch(html, /FFLogs|XIVAPI|イベントログ|戦闘レポート|アクションDB|ACTION DATABASE|ID \d+/i);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 });
 
 test("keeps the Allagan Studies damage and timing invariants explicit", async () => {
-  const [formula, engine, jobs, pets, specials, dots, blackMage, page, actionRoute, logClient] = await Promise.all([
+  const [formula, engine, jobs, pets, specials, dots, blackMage, page, actionRoute, logClient, readme, workflow] = await Promise.all([
     readFile(new URL("../app/calculation/damage-formula.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/damage-engine.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/calculation/job-configs.ts", import.meta.url), "utf8"),
@@ -47,7 +48,15 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/actions/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/fflogs-client.ts", import.meta.url), "utf8"),
+    readFile(new URL("../README.md", import.meta.url), "utf8"),
+    readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8"),
   ]);
+
+  // Public copy and workflow titles do not disclose internal integrations or
+  // stable identifiers. Internal implementation names remain testable below.
+  assert.doesNotMatch(page, /イベントログ|Event log|戦闘レポート|Combat report|Castイベント|アクションDB|ACTION DATABASE|ID \{action\.id\}|www\.fflogs\.com\/reports/i);
+  assert.doesNotMatch(readme, /actionId|アクションID|FFLogs|XIVAPI/i);
+  assert.match(workflow, /^name: Update\s+run-name: Update/m);
 
   // Current Attack is 90 potency; Shot (BRD/MCH) is 80 potency.
   assert.match(formula, /AA_POTENCY:Record<string,number>=\{BRD:80,MCH:80\}/);

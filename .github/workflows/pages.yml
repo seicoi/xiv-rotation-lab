@@ -1,4 +1,5 @@
-name: Deploy GitHub Pages
+name: Update
+run-name: Update
 
 on:
   push:

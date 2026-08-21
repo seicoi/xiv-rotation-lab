@@ -32,7 +32,7 @@ export async function GET(request:Request){
     for(const [id,a] of await fetchActions(limitBreakIds(job),language)){if(a.name)unique.set(`lb:${id}`,{...a,level:null})}
     const actions=[...unique.values()].sort((a,b)=>priority(a)-priority(b)||(a.level??999)-(b.level??999)||a.id-b.id||a.name.localeCompare(b.name,language));
     return Response.json({job,level,language,count:actions.length,actions},{headers:{"Cache-Control":"public, max-age=86400"}});
-  }catch(error){return Response.json({error:error instanceof Error?error.message:"xivapi unavailable"},{status:502})}
+  }catch{return Response.json({error:"unavailable"},{status:502})}
 }
 
 async function searchAll(sheet:string,query:string,fields:string,language:string){
