@@ -37,7 +37,7 @@ test("server-renders XIV Rotation Lab", async () => {
 });
 
 test("keeps the Allagan Studies damage and timing invariants explicit", async () => {
-  const [formula, engine, jobs, pets, specials, dots, blackMage, recasts, page, actionRoute, logClient, readme, workflow] = await Promise.all([
+  const [formula, engine, jobs, pets, specials, dots, blackMage, recasts, library, page, actionRoute, logClient, readme, workflow] = await Promise.all([
     readFile(new URL("../app/calculation/damage-formula.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/damage-engine.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/calculation/job-configs.ts", import.meta.url), "utf8"),
@@ -46,6 +46,7 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
     readFile(new URL("../app/calculation/dot-actions.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/calculation/black-mage-config.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/recast-timer.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/rotation-library.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/actions/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/fflogs-client.ts", import.meta.url), "utf8"),
@@ -136,6 +137,13 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(page, /<RecastTracker states=\{recastStates\}/);
   assert.match(page, /作成後にジョブは変更できません/);
   assert.match(recasts, /nextChargeAt=charges<maximum\?nextChargeAt\+recast:Infinity/);
+  assert.match(library, /ROTATION_LIBRARY_LIMIT=30/);
+  assert.match(page, /xiv-rotation-lab-v7/);
+  assert.match(page, /ROTATION LIBRARY/);
+  assert.match(page, /stats:\{\.\.\.stats\}/);
+  assert.match(page, /calculate\(item\.rows,item\.stats,item\.job/);
+  assert.match(page, /changeStats\(\{\.\.\.savedRotation\.stats\}\)/);
+  assert.match(page, /保存先へ上書き/);
 
   // Post-stat-squish pet ratios stay separate from the historical 5.x values.
   assert.match(pets, /DRK:.*numerator:80,denominator:86.*useNonTankAttack:true,provisional:true/s);
