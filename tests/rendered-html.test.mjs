@@ -140,6 +140,7 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(library, /ROTATION_LIBRARY_LIMIT=30/);
   assert.match(page, /xiv-rotation-lab-v7/);
   assert.match(page, /ROTATION LIBRARY/);
+  assert.match(page, /value="library"/);
   assert.match(page, /stats:\{\.\.\.stats\}/);
   assert.match(page, /calculate\(item\.rows,item\.stats,item\.job/);
   assert.match(page, /changeStats\(\{\.\.\.savedRotation\.stats\}\)/);
