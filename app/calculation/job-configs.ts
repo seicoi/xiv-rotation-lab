@@ -1,9 +1,10 @@
-export type BuffRule={sourceActionId:number;key?:string;duration:number;activationDelay?:number;damageMultiplier?:number;critRateBonus?:number;dhRateBonus?:number;guaranteedCrit?:boolean;guaranteedDh?:boolean;guaranteesDot?:boolean;haste?:number;stacks?:number;consumeOnUse?:boolean;mainStatPercent?:number;mainStatCap?:number;include?:number[];exclude?:number[];lanes?:Array<"gcd"|"ability"|"auto">;attackTypeIds?:number[];requiresCombo?:boolean;requiresSelfTarget?:boolean;extendDuration?:boolean;maxDuration?:number;extendExistingKey?:string;extendBy?:number};
+export type BuffRule={sourceActionId:number;key?:string;duration:number;activationDelay?:number;damageMultiplier?:number;critRateBonus?:number;dhRateBonus?:number;guaranteedCrit?:boolean;guaranteedDh?:boolean;guaranteesDot?:boolean;haste?:number;stacks?:number;consumeOnUse?:boolean;mainStatPercent?:number;mainStatCap?:number;potencyOverride?:number;castOverride?:number;include?:number[];exclude?:number[];lanes?:Array<"gcd"|"ability"|"auto">;attackTypeIds?:number[];requiresCombo?:boolean;requiresSelfTarget?:boolean;extendDuration?:boolean;maxDuration?:number;extendExistingKey?:string;extendBy?:number};
 export type ActionRule={guaranteedCrit?:boolean;guaranteedDh?:boolean;multiplier?:number};
 export type JobConfig={buffs:BuffRule[];actions:Record<number,ActionRule>;passiveHaste?:number};
 const JOBS=["PLD","WAR","DRK","GNB","WHM","SCH","AST","SGE","MNK","DRG","NIN","SAM","RPR","VPR","BRD","MCH","DNC","BLM","SMN","RDM","PCT"];
 export const JOB_CONFIGS:Record<string,JobConfig>=Object.fromEntries(JOBS.map(job=>[job,{buffs:[],actions:{}}]));
 JOB_CONFIGS.PLD.buffs.push({sourceActionId:20,duration:20,damageMultiplier:1.25});
+JOB_CONFIGS.PLD.buffs.push({sourceActionId:3539,key:"divine-might",duration:30,stacks:1,consumeOnUse:true,include:[7384],requiresCombo:true,potencyOverride:500,castOverride:0});
 JOB_CONFIGS.WAR.buffs.push(
   {sourceActionId:45,key:"surging-tempest",duration:30,damageMultiplier:1.1,requiresCombo:true,extendDuration:true,maxDuration:60},
   {sourceActionId:16462,key:"surging-tempest",duration:30,damageMultiplier:1.1,requiresCombo:true,extendDuration:true,maxDuration:60},
