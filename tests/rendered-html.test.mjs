@@ -134,7 +134,7 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(engine, /comboSucceeded/);
   assert.match(engine, /comboExpires=actionReady\+30/);
   assert.match(page, /migrateDeveloperConfig/);
-  assert.match(page, /<RecastTracker states=\{recastStates\}/);
+  assert.match(page, /<RecastTracker key=\{job\} states=\{recastStates\}/);
   assert.match(page, /作成後にジョブは変更できません/);
   assert.match(recasts, /nextChargeAt=charges<maximum\?nextChargeAt\+recast:Infinity/);
   assert.match(library, /ROTATION_LIBRARY_LIMIT=30/);
