@@ -142,17 +142,19 @@ button:disabled { cursor: not-allowed; }
 .system-toolbar { min-height: 54px; padding: 10px 14px; }
 .modifier-controls button, .timeline-actions button { min-height: 34px; border-radius: var(--radius-sm); }
 .modifier-controls button:hover, .timeline-actions button:hover { border-color: var(--green); color: var(--green); }
-.recast-tracker { padding: 10px 14px; }
+.recast-tracker { position: relative; z-index: 5; overflow: visible; padding: 10px 14px; }
 .recast-label { position: relative; }
 .recast-label button { margin-top: 3px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--blue); font: 7px monospace; }
 .recast-label button:hover { border-color: var(--blue); background: var(--green-soft); }
-.recast-list article { position: relative; cursor: grab; }
+.recast-list article { position: relative; cursor: grab; touch-action: none; user-select: none; -webkit-user-drag: none; }
+.recast-list article:active { cursor: grabbing; }
+.recast-list article img { pointer-events: none; user-select: none; -webkit-user-drag: none; }
 .recast-list article.dragging { opacity: .4; }
 .recast-list article.role-start { margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--line-strong); }
 .recast-hide { position: absolute; top: -4px; right: -2px; z-index: 3; display: grid; width: 15px; height: 15px; place-items: center; border-radius: 50%; background: #17232a; color: #92a7b2; font: 10px/1 monospace; opacity: 0; }
 .recast-list article:hover .recast-hide, .recast-hide:focus-visible { opacity: 1; }
 .recast-hide:hover { background: #482225; color: var(--danger); }
-.recast-manager { position: absolute; z-index: 8; top: 100%; right: 12px; width: min(520px, calc(100% - 24px)); padding: 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: #101a20; box-shadow: var(--shadow-float); }
+.recast-manager { position: absolute; z-index: 20; top: calc(100% - 2px); left: 12px; width: min(520px, calc(100% - 24px)); padding: 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: #101a20; box-shadow: var(--shadow-float); }
 .recast-manager > div:first-child { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
 .recast-manager > div:first-child b { font-size: 10px; }
 .recast-manager > div:first-child button { padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; color: var(--blue); font-size: 8px; }
