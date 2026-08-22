@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./extra.css";
+import "./ui-refresh.css";
 
 const pagesBasePath = (process.env.PAGES_BASE_PATH || "").replace(/\/$/, "");
 
