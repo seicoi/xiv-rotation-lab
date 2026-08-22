@@ -37,7 +37,7 @@ test("server-renders XIV Rotation Lab", async () => {
 });
 
 test("keeps the Allagan Studies damage and timing invariants explicit", async () => {
-  const [formula, engine, jobs, pets, specials, dots, blackMage, page, actionRoute, logClient, readme, workflow] = await Promise.all([
+  const [formula, engine, jobs, pets, specials, dots, blackMage, recasts, page, actionRoute, logClient, readme, workflow] = await Promise.all([
     readFile(new URL("../app/calculation/damage-formula.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/damage-engine.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/calculation/job-configs.ts", import.meta.url), "utf8"),
@@ -45,6 +45,7 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
     readFile(new URL("../app/calculation/special-actions.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/calculation/dot-actions.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/calculation/black-mage-config.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/recast-timer.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/actions/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/fflogs-client.ts", import.meta.url), "utf8"),
@@ -85,10 +86,14 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(page, /AA内部威力/);
 
   // SS tiers come from integer floors: displayed GCD is 2 decimals and the
-  // internal cycle adds 0.005 seconds of GCD tax. Ability lock is 0.675 sec.
+  // internal cycle adds 0.005 seconds of GCD tax. Ability lock is 0.625 sec,
+  // and cast actions unlock oGCD after 80% of the adjusted cast.
   assert.match(formula, /Math\.floor\(hasteMilliseconds\/10\)\/100/);
   assert.match(formula, /speedAdjustedTime\(seconds,stats,haste\)\+\.005/);
-  assert.match(engine, /nextOgcd=Math\.max\(nextOgcd,row\.time\)\+\.675/);
+  assert.match(engine, /ANIMATION_LOCK=\.625/);
+  assert.match(engine, /adjustedCast\*\.8/);
+  assert.match(engine, /nextOgcd=Math\.max\(nextOgcd,ogcdUnlock\)/);
+  assert.doesNotMatch(engine, /sumPotency\+=newAa\*aaPotency/);
   assert.match(actionRoute, /AdditionalCooldownGroup/);
   assert.match(actionRoute, /cooldownGroup===58\?recast:additionalCooldownGroup===58\?0:recast/);
   assert.match(engine, /row\.gcdRecast\|\|stats\.gcd/);
@@ -100,6 +105,7 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(page, /seconds\.toFixed\(3\)\.padStart\(6,"0"\)/);
   assert.match(jobs, /JOB_CONFIGS\.WHM\.buffs\.push\(\{sourceActionId:136,duration:15,haste:20\}\)/);
   assert.match(jobs, /JOB_CONFIGS\.GNB\.buffs\.push\(\{sourceActionId:16138,duration:20,damageMultiplier:1\.2\}\)/);
+  assert.match(jobs, /sourceActionId:3539,key:"divine-might".*include:\[7384\].*potencyOverride:500,castOverride:0/);
   assert.match(jobs, /sourceActionId:7436,duration:20,critRateBonus:\.1/);
   assert.match(jobs, /sourceActionId:36958,key:"kunais-bane",duration:15,damageMultiplier:1\.1/);
   assert.match(jobs, /sourceActionId:118,duration:20,dhRateBonus:\.2/);
@@ -122,10 +128,14 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   // secondary values use a colon. Match the direct value before combo values.
   assert.match(actionRoute, /potency\\s\+of/);
   assert.match(actionRoute, /ActionCombo,PreservesCombo,Aspect/);
+  assert.match(actionRoute, /MaxCharges/);
   assert.match(actionRoute, /function extractComboPotency/);
   assert.match(engine, /comboSucceeded/);
   assert.match(engine, /comboExpires=actionReady\+30/);
   assert.match(page, /migrateDeveloperConfig/);
+  assert.match(page, /<RecastTracker states=\{recastStates\}/);
+  assert.match(page, /作成後にジョブは変更できません/);
+  assert.match(recasts, /nextChargeAt=charges<maximum\?nextChargeAt\+recast:Infinity/);
 
   // Post-stat-squish pet ratios stay separate from the historical 5.x values.
   assert.match(pets, /DRK:.*numerator:80,denominator:86.*useNonTankAttack:true,provisional:true/s);
