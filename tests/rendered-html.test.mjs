@@ -31,7 +31,7 @@ test("server-renders XIV Rotation Lab", async () => {
   const html = await response.text();
   assert.match(html, /<title>XIV Rotation Lab<\/title>/i);
   assert.match(html, /タイムライン/);
-  assert.match(html, /設定/);
+  assert.match(html, /データベース/);
   assert.doesNotMatch(html, /FFLogs|XIVAPI|イベントログ|戦闘レポート|アクションDB|ACTION DATABASE|ID \d+/i);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 });
@@ -135,6 +135,9 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(engine, /comboExpires=actionReady\+30/);
   assert.match(page, /migrateDeveloperConfig/);
   assert.match(page, /<RecastTracker key=\{job\} states=\{recastStates\}/);
+  assert.match(page, /onPointerDown=\{event=>startDrag\(event,state\.id\)\}/);
+  assert.match(page, /aria-controls="recast-display-manager"/);
+  assert.doesNotMatch(page, /<article draggable onDragStart=\{\(\)=>setDragging\(String\(state\.id\)\)\}/);
   assert.match(page, /作成後にジョブは変更できません/);
   assert.match(recasts, /nextChargeAt=charges<maximum\?nextChargeAt\+recast:Infinity/);
   assert.match(library, /ROTATION_LIBRARY_LIMIT=30/);
