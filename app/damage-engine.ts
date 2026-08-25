@@ -17,6 +17,7 @@ export type EngineRow = {
   potency:number; comboPotency?:number; comboFromActionId?:number; preservesCombo?:boolean; aspectId?:number; attackTypeId?:number; attackType?:string; targetSelf?:boolean; cast:number; recast:number; gcdRecast?:number; modifier:"none"|"delay"|"downtime"|"pre"|"potion";
   modifierValue:number; specialValue?:number;
   dotPotency?:number; dotDuration?:number; guaranteedCrit?:boolean; guaranteedDh?:boolean;
+  mpCost?:number;
 };
 
 export type DotRule = { sourceActionId:number; key:string; potency:number; duration:number; tickInterval?:number; initialTick?:boolean };
@@ -30,9 +31,11 @@ export type EngineComputedRow<T extends EngineRow = EngineRow> = T & {
   sumPotency:number; aaCount:number; totalDamage:number; simulatedDamage:number; rowDamage:number;
   aaDamage:number; dotDamage:number; dotDamageByAction:Record<string,number>;
   specialDamage:number; specialDamageByAction:Record<string,number>;
+  activeBuffs:EngineBuffSnapshot[]; mp:number;
   simulation?:SimulationDistribution;
 };
 export type SimulationDistribution={minimum:number;maximum:number;median:number;mean:number;samples:number[]};
+export type EngineBuffSnapshot={key:string;sourceActionId:number;duration:number;remaining:number;remainingStacks?:number;maximumStacks?:number;haste?:number;damageMultiplier?:number;critRateBonus?:number;dhRateBonus?:number;guaranteedCrit?:boolean;guaranteedDh?:boolean;mainStatPercent?:number};
 
 type ActiveBuff = BuffRule & { starts:number; ends:number; remainingStacks?:number };
 type DotInstance = DotRule & { sourceName:string; nextTick:number; ends:number; base:number; multipliers:number[]; rateBonuses:RollRateBonuses; crit:boolean; dh:boolean };
@@ -59,7 +62,7 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
   const random=rng(hashSeed(rows,stats,job)),simulationTotals=simulate?new Float64Array(iterations):null;
   const directSimulation=(base:number,formulaStats:EngineStats,crit:boolean,dh:boolean,multipliers:number[],rateBonuses:RollRateBonuses={})=>{if(!simulationTotals)return expectedRoll(base,formulaStats,crit,dh,multipliers,rateBonuses);let sampled=0;for(let i=0;i<iterations;i++){const value=simulatedRoll(base,formulaStats,random,crit,dh,multipliers,rateBonuses);simulationTotals[i]+=value;sampled+=value}return sampled/iterations};
   const dotSimulation=(base:number,formulaStats:EngineStats,crit:boolean,dh:boolean,multipliers:number[],rateBonuses:RollRateBonuses={})=>{if(!simulationTotals)return expectedRoll(base,formulaStats,crit,dh,multipliers,rateBonuses);let sampled=0;for(let i=0;i<iterations;i++){const value=simulatedDotRoll(base,formulaStats,random,crit,dh,multipliers,rateBonuses);simulationTotals[i]+=value;sampled+=value}return sampled/iterations};
-  let nextGcd=0,nextOgcd=0,nextAa=0,aaCount=0,sumPotency=0,total=0,simTotal=0,aaTotal=0,dotTotal=0,specialTotal=0,comboActionId:number|null=null,comboExpires=-Infinity;
+  let nextGcd=0,nextOgcd=0,nextAa=0,nextMpTick=3,mp=10000,aaCount=0,sumPotency=0,total=0,simTotal=0,aaTotal=0,dotTotal=0,specialTotal=0,comboActionId:number|null=null,comboExpires=-Infinity;
   const activeBuffs:ActiveBuff[]=[],dots=new Map<string,DotInstance>(),dotBreakdown:Record<string,number>={},specialBreakdown:Record<string,number>={},scheduled:ScheduledSpecial[]=[];const output:EngineComputedRow<T>[]=[];
   let bunshinState:{ends:number;stacks:number;sourceName:string}|undefined,starState:{placedAt:number;group:string;sourceName:string}|undefined,queenState:{group:string;battery:number;sourceName:string}|undefined,blackMageState=initialBlackMageState();
   const resolveScheduled=(until:number)=>{
@@ -82,6 +85,7 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
     const ogcdUnlock=Math.round((row.time+(adjustedCast>0?adjustedCast*.8:0)+ANIMATION_LOCK)*1000)/1000;
     const prepare=row.actionId!==null&&isSummonerPetCommand(job,row.actionId)?actionReady+PET_COMMAND_DELAY:actionReady;
     const damageEvent=row.modifier==="delay"||row.modifier==="downtime"?row.time+Math.max(0,row.modifierValue):actionReady;
+    while(nextMpTick<=actionReady){mp=Math.min(10000,mp+200);nextMpTick+=3}
     const detonatedStar=row.actionId===SPECIAL_ACTION_IDS.stellarDetonation?starState:undefined;
     if(detonatedStar){for(let index=scheduled.length-1;index>=0;index--)if(scheduled[index].group===detonatedStar.group)scheduled.splice(index,1);starState=undefined}
     if(row.actionId===SPECIAL_ACTION_IDS.queenOverdrive&&queenState){
@@ -100,6 +104,7 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
       activeBuffs.push({sourceActionId:-1,duration:30,mainStatPercent:Math.max(0,stats.potionPercent)/100,mainStatCap:Math.max(0,stats.potionCap),starts:row.time,ends:row.time+30});
       nextOgcd=Math.max(nextOgcd,row.time+ANIMATION_LOCK);
     }else if(row.actionId!==null){
+      mp=Math.max(0,mp-Math.max(0,row.mpCost||0));
       if(row.actionId===SPECIAL_ACTION_IDS.stellarDetonation)effectivePotency=detonatedStar?(damageEvent-detonatedStar.placedAt>=EARTHLY_STAR.growAfter?EARTHLY_STAR.largePotency:EARTHLY_STAR.smallPotency):0;
       else if(isSpecialControlAction(row.actionId))effectivePotency=0;
       const buffs=activeBuffs.filter(buff=>prepare>=buff.starts&&prepare<buff.ends&&applies(buff,row.actionId,row.attackTypeId,row.lane));
@@ -140,7 +145,8 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
     }
     aaTotal+=aaDamage;total+=aaDamage;simTotal+=aaSim;
     const measurementTime=measuredDuration(damageEvent,downtimes);
-    output.push({...row,potency:effectivePotency,effectiveCast:castTime,prepare,damageEvent,nextGcd,nextOgcd,dps:measurementTime>0?total/measurementTime:0,simulatedDps:measurementTime>0?simTotal/measurementTime:0,sumPotency,aaCount,totalDamage:total,simulatedDamage:simTotal,rowDamage,aaDamage:aaTotal,dotDamage:dotTotal,dotDamageByAction:{...dotBreakdown},specialDamage:specialTotal,specialDamageByAction:{...specialBreakdown}});
+    const buffSnapshot=activeBuffs.filter(buff=>damageEvent>=buff.starts&&damageEvent<buff.ends&&(buff.remainingStacks===undefined||buff.remainingStacks>0)).map(buff=>({key:buff.key||`action:${buff.sourceActionId}`,sourceActionId:buff.sourceActionId,duration:buff.duration,remaining:Math.max(0,buff.ends-damageEvent),remainingStacks:buff.remainingStacks,maximumStacks:buff.stacks,haste:buff.haste,damageMultiplier:buff.damageMultiplier,critRateBonus:buff.critRateBonus,dhRateBonus:buff.dhRateBonus,guaranteedCrit:buff.guaranteedCrit,guaranteedDh:buff.guaranteedDh,mainStatPercent:buff.mainStatPercent}));
+    output.push({...row,potency:effectivePotency,effectiveCast:castTime,prepare,damageEvent,nextGcd,nextOgcd,dps:measurementTime>0?total/measurementTime:0,simulatedDps:measurementTime>0?simTotal/measurementTime:0,sumPotency,aaCount,totalDamage:total,simulatedDamage:simTotal,rowDamage,aaDamage:aaTotal,dotDamage:dotTotal,dotDamageByAction:{...dotBreakdown},specialDamage:specialTotal,specialDamageByAction:{...specialBreakdown},activeBuffs:buffSnapshot,mp});
   }
   const final=output.at(-1);
   if(final&&simulationTotals){const duration=measuredDuration(final.damageEvent,downtimes),samples=Array.from(simulationTotals,value=>duration>0?value/duration:0).sort((a,b)=>a-b),middle=Math.floor(samples.length/2),median=samples.length%2?samples[middle]:(samples[middle-1]+samples[middle])/2;final.simulation={minimum:samples[0]||0,maximum:samples.at(-1)||0,median,mean:samples.reduce((sum,value)=>sum+value,0)/samples.length,samples}}

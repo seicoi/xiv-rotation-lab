@@ -32,6 +32,18 @@ test("cast actions unlock oGCD after 80 percent of cast plus 0.625 seconds",()=>
   assert.equal(instant.aaCount,1);
 });
 
+test("computed rows expose active buff timers, stacks, and MP at the timeline cursor",()=>{
+  const rows=[
+    {...base,id:"buff",name:"Royal Authority",time:0,actionId:3539,potency:200,comboPotency:460,comboFromActionId:15,mpCost:1000},
+    {...base,id:"wait",name:"Wait",time:3,actionId:9,potency:220,mpCost:500},
+  ];
+  const overrides={jobs:{PLD:{buffs:[{sourceActionId:3539,key:"test-stack",duration:10,stacks:2}],actions:{}}}};
+  const result=calculateDamage(rows,stats,"PLD",overrides,{simulate:false});
+  assert.equal(result[0].mp,9000);
+  assert.equal(result[1].mp,8700);
+  assert.deepEqual(result[1].activeBuffs.map(buff=>({key:buff.key,remaining:buff.remaining,stacks:buff.remainingStacks})),[{key:"test-stack",remaining:7,stacks:2}]);
+});
+
 test("charge recasts recover sequentially and expose remaining stacks",()=>{
   const action={id:1,name:"Charge",lane:"ability" as const,recast:30,gcdRecast:0,maxCharges:2,iconPath:""},usages=[{actionId:1,time:0},{actionId:1,time:1}];
   assert.deepEqual(calculateRecastState(action,usages,10),{...action,charges:0,remaining:20,readyAt:30});
