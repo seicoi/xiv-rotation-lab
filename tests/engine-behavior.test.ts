@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {calculateDamage} from "../app/damage-engine";
 import {calculateRecastState,hasIndividualRecast} from "../app/recast-timer";
-import {adjustedActionMpCost} from "../app/calculation/mp-config";
+import {actionMpCostFromFields,adjustedActionMpCost} from "../app/calculation/mp-config";
+import {calculateJobGauges,extractGaugeEffects} from "../app/calculation/job-gauges";
 
 const stats={level:100,weapon:152,aaInterval:2.24,aaSpeed:420,main:5857,aaMain:440,crit:3242,dh:1230,det:2883,speed:420,tenacity:420,gcd:2.5,potionPercent:10,potionCap:392,simulationIterations:1};
 const base={id:"",name:"",lane:"gcd" as const,potency:0,cast:0,recast:2.5,gcdRecast:2.5,modifier:"none" as const,modifierValue:0};
@@ -50,6 +51,49 @@ test("level traits adjust catalog MP costs before they reach the timeline",()=>{
   assert.equal(adjustedActionMpCost("PLD",100,4000),2000);
   assert.equal(adjustedActionMpCost("PLD",60,4000),4000);
   assert.equal(adjustedActionMpCost("RDM",100,400),400);
+});
+
+test("standard and palette-aware MP cost fields are decoded",()=>{
+  assert.equal(actionMpCostFromFields(3,4),400);
+  assert.equal(actionMpCostFromFields(96,3),300);
+  assert.equal(actionMpCostFromFields(96,4),400);
+  assert.equal(actionMpCostFromFields(92,3),300);
+  assert.equal(actionMpCostFromFields(92,4),400);
+  assert.equal(actionMpCostFromFields(0,4),0);
+});
+
+test("job gauges are derived from API descriptions and timeline actions",()=>{
+  const gain=extractGaugeEffects("GNB","コンボボーナス：自身に「ソイル」を付与する。"),spend=extractGaugeEffects("GNB","発動条件：「ソイル」2");
+  assert.deepEqual(gain,[{key:"cartridge",add:1,requiresCombo:true}]);
+  assert.deepEqual(spend,[{key:"cartridge",spend:2}]);
+  assert.deepEqual(extractGaugeEffects("MNK","自身に「闘気」を付与する。\\n発動条件：「闘気」5未満"),[{key:"chakra",add:1,requiresCombo:false}]);
+  const rows=[
+    {time:0,actionId:16139,lane:"gcd" as const},
+    {time:2.5,actionId:16137,lane:"gcd" as const,comboFromActionId:16139},
+    {time:5,actionId:16145,lane:"gcd" as const,comboFromActionId:16137,gaugeEffects:gain},
+    {time:7.5,actionId:25760,lane:"gcd" as const,gaugeEffects:spend},
+  ];
+  assert.equal(calculateJobGauges("GNB",rows)[0].value,0);
+});
+
+test("time and auto-attack gauges are calculated without manual input",()=>{
+  const whiteMage=calculateJobGauges("WHM",[{time:20,actionId:16531,lane:"gcd",gaugeEffects:[{key:"lily",spend:1},{key:"blood-lily",add:1}]}]);
+  assert.deepEqual(whiteMage.map(item=>item.value),[0,1]);
+  assert.equal(calculateJobGauges("PLD",[],7)[0].value,35);
+});
+
+test("job-specific gauge timers and paired resources are replayed",()=>{
+  const paired=extractGaugeEffects("RDM","追加効果：「ブラックマナ」と「ホワイトマナ」を4上昇させる。");
+  assert.deepEqual(paired,[{key:"black-mana",add:4,requiresCombo:false},{key:"white-mana",add:4,requiresCombo:false}]);
+  const darkKnight=calculateJobGauges("DRK",[
+    {time:0,actionId:7390,lane:"ability",gaugeEffects:[{key:"blood",add:10}]},
+    {time:.625,actionId:3617,lane:"gcd"},
+    {time:3.13,actionId:3623,lane:"gcd"},
+    {time:5.635,actionId:3632,lane:"gcd",gaugeEffects:[{key:"blood",add:20,requiresCombo:true}],comboFromActionId:3623},
+  ]);
+  assert.equal(darkKnight[0].value,50);
+  const gunbreaker=calculateJobGauges("GNB",[{time:0,actionId:16164,lane:"ability",gaugeEffects:[{key:"cartridge",add:3}]}]);
+  assert.deepEqual([gunbreaker[0].value,gunbreaker[0].maximum],[3,6]);
 });
 
 test("job actions restore MP and combo-only restoration requires its combo",()=>{
