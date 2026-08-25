@@ -1,4 +1,5 @@
 import {SPECIAL_REPLACEMENT_ACTIONS,isSpecialControlAction} from "../../calculation/special-actions";
+import {adjustedActionMpCost} from "../../calculation/mp-config";
 
 const JOBS = new Set(["PLD","WAR","DRK","GNB","WHM","SCH","AST","SGE","MNK","DRG","NIN","SAM","RPR","VPR","BRD","MCH","DNC","BLM","SMN","RDM","PCT"]);
 const JOB_ROWS:Record<string,number>={PLD:19,WAR:21,DRK:32,GNB:37,WHM:24,SCH:28,AST:33,SGE:40,MNK:20,DRG:22,NIN:30,SAM:34,RPR:39,VPR:41,BRD:23,MCH:31,DNC:38,BLM:25,SMN:27,RDM:35,PCT:42};
@@ -30,7 +31,9 @@ export async function GET(request:Request){
     const descriptions=await fetchDescriptions([...unique.values()].map(a=>a.id),language);
     for(const a of unique.values()){const description=descriptions.get(a.id);if(description){const dot=extractDot(description);a.dotPotency=dot.potency;a.dotDuration=dot.duration;a.potency=isSpecialControlAction(a.id)?0:extractPotency(dot.directText);a.comboPotency=extractComboPotency(dot.directText);a.hasDamage=a.potency>0||a.comboPotency>0||a.dotPotency>0||isSpecialControlAction(a.id);a.guaranteedCrit=a.hasDamage&&/(?:必ず[^。\n]{0,30}クリティカルヒット|guaranteed (?:to be )?a critical|guaranteed critical)/i.test(description);a.guaranteedDh=a.hasDamage&&/(?:必ず[^。\n]{0,30}ダイレクトヒット|critical direct hit|guaranteed (?:to be )?a direct|guaranteed direct)/i.test(description)}}
     for(const [id,a] of await fetchActions(limitBreakIds(job),language)){if(a.name)unique.set(`lb:${id}`,{...a,level:null})}
-    const actions=[...unique.values()].sort((a,b)=>priority(a)-priority(b)||(a.level??999)-(b.level??999)||a.id-b.id||a.name.localeCompare(b.name,language));
+    const actions=[...unique.values()];
+    for(const action of actions)action.mpCost=adjustedActionMpCost(job,level,action.mpCost);
+    actions.sort((a,b)=>priority(a)-priority(b)||(a.level??999)-(b.level??999)||a.id-b.id||a.name.localeCompare(b.name,language));
     return Response.json({job,level,language,count:actions.length,actions},{headers:{"Cache-Control":"public, max-age=86400"}});
   }catch{return Response.json({error:"unavailable"},{status:502})}
 }
