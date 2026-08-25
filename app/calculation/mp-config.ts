@@ -65,6 +65,13 @@ export const COMMON_MP_EFFECTS:MpEffectRule[]=[
 
 export const DARK_ARTS_SPENDERS=new Set([16466,16467,16469,16470]);
 
+// PCT's palette-aware spells expose their MP through dedicated cost types.
+// Like the standard MP type, the stored value is measured in hundreds.
+const MP_COST_TYPES=new Set([3,92,96]);
+export function actionMpCostFromFields(costType:number,costValue:number){
+  return MP_COST_TYPES.has(costType)?Math.max(0,costValue)*100:0;
+}
+
 export function adjustedActionMpCost(job:string,level:number,baseCost:number){
   // Divine Magic Mastery halves every PLD spell cost from level 64 onward.
   return job==="PLD"&&level>=64?Math.floor(Math.max(0,baseCost)/2):Math.max(0,baseCost);
