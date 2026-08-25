@@ -205,6 +205,8 @@ button:disabled { cursor: not-allowed; }
 .recast-manager > div:first-child b { font-size: 10px; }
 .recast-manager > div:first-child button { padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; color: var(--blue); font-size: 8px; }
 .recast-manager > span { color: var(--muted); font-size: 9px; }
+.mp-cost-option { display: inline-flex; align-items: center; gap: 9px; margin-top: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); font-size: 12px; }
+.mp-cost-option input { accent-color: var(--blue); }
 .recast-hidden-list { display: flex; max-height: 150px; flex-wrap: wrap; gap: 6px; overflow-y: auto; }
 .recast-hidden-list button { display: flex; align-items: center; gap: 6px; max-width: 160px; padding: 5px 7px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-1); color: var(--muted); font-size: 9px; }
 .recast-hidden-list button:hover { border-color: var(--blue); color: var(--ink); }

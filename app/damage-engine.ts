@@ -4,12 +4,14 @@ import {GUARANTEED_ACTIONS,findGuaranteedAction,type GuaranteedAction} from "./c
 import {JOB_CONFIGS,type ActionRule,type BuffRule,type JobConfig} from "./calculation/job-configs";
 import {canApplyPetDamageCorrection,findPetCorrectionProfile,petFormulaOverrides,petMainStat} from "./calculation/pet-configs";
 import {BUNSHIN,EARTHLY_STAR,PET_COMMAND_DELAY,QUEEN,SPECIAL_ACTION_IDS,bunshinPotency,isDirectPetCorrectedAction,isSpecialControlAction,isSummonerPetCommand,livingShadowAttacks,queenAttacks,queenPotency} from "./calculation/special-actions";
-import {advanceBlackMageState,blackMageDamageMultipliers,initialBlackMageState} from "./calculation/black-mage-config";
+import {blackMageDamageMultipliers,initialBlackMageState,resolveBlackMageMp} from "./calculation/black-mage-config";
+import {COMMON_MP_EFFECTS,DARK_ARTS_SPENDERS,MP_RESOURCE_CONFIGS,type MpEffectRule} from "./calculation/mp-config";
 
 export type EngineStats = {
   level:number; weapon:number; aaInterval:number; aaSpeed:number; main:number; aaMain:number;
   crit:number; dh:number; det:number; speed:number; tenacity:number; gcd:number;
   potionPercent:number; potionCap:number; simulationIterations:number;
+  ignoreMpCosts?:boolean;
 };
 
 export type EngineRow = {
@@ -41,6 +43,7 @@ type ActiveBuff = BuffRule & { starts:number; ends:number; remainingStacks?:numb
 type DotInstance = DotRule & { sourceName:string; nextTick:number; ends:number; base:number; multipliers:number[]; rateBonuses:RollRateBonuses; crit:boolean; dh:boolean };
 type Downtime = { start:number; end:number };
 type ScheduledSpecial={id:string;group:string;time:number;potency:number;sourceName:string;actionId:number;phase?:"punch"|"finisher"};
+type ActiveMpEffect=MpEffectRule&{starts:number;ends:number;remainingStacks?:number;nextTick?:number};
 export const ANIMATION_LOCK=.625;
 
 const applies=(buff:BuffRule,actionId:number|null,attackTypeId=0,lane:"gcd"|"ability"|"auto"="ability")=>actionId!==null&&(!buff.include||buff.include.includes(actionId))&&(!buff.exclude||!buff.exclude.includes(actionId))&&(!buff.lanes||buff.lanes.includes(lane))&&(!buff.attackTypeIds||buff.attackTypeIds.includes(attackTypeId));
@@ -63,8 +66,8 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
   const directSimulation=(base:number,formulaStats:EngineStats,crit:boolean,dh:boolean,multipliers:number[],rateBonuses:RollRateBonuses={})=>{if(!simulationTotals)return expectedRoll(base,formulaStats,crit,dh,multipliers,rateBonuses);let sampled=0;for(let i=0;i<iterations;i++){const value=simulatedRoll(base,formulaStats,random,crit,dh,multipliers,rateBonuses);simulationTotals[i]+=value;sampled+=value}return sampled/iterations};
   const dotSimulation=(base:number,formulaStats:EngineStats,crit:boolean,dh:boolean,multipliers:number[],rateBonuses:RollRateBonuses={})=>{if(!simulationTotals)return expectedRoll(base,formulaStats,crit,dh,multipliers,rateBonuses);let sampled=0;for(let i=0;i<iterations;i++){const value=simulatedDotRoll(base,formulaStats,random,crit,dh,multipliers,rateBonuses);simulationTotals[i]+=value;sampled+=value}return sampled/iterations};
   let nextGcd=0,nextOgcd=0,nextAa=0,nextMpTick=3,mp=10000,aaCount=0,sumPotency=0,total=0,simTotal=0,aaTotal=0,dotTotal=0,specialTotal=0,comboActionId:number|null=null,comboExpires=-Infinity;
-  const activeBuffs:ActiveBuff[]=[],dots=new Map<string,DotInstance>(),dotBreakdown:Record<string,number>={},specialBreakdown:Record<string,number>={},scheduled:ScheduledSpecial[]=[];const output:EngineComputedRow<T>[]=[];
-  let bunshinState:{ends:number;stacks:number;sourceName:string}|undefined,starState:{placedAt:number;group:string;sourceName:string}|undefined,queenState:{group:string;battery:number;sourceName:string}|undefined,blackMageState=initialBlackMageState();
+  const activeBuffs:ActiveBuff[]=[],activeMpEffects:ActiveMpEffect[]=[],dots=new Map<string,DotInstance>(),dotBreakdown:Record<string,number>={},specialBreakdown:Record<string,number>={},scheduled:ScheduledSpecial[]=[];const output:EngineComputedRow<T>[]=[];
+  let bunshinState:{ends:number;stacks:number;sourceName:string}|undefined,starState:{placedAt:number;group:string;sourceName:string}|undefined,queenState:{group:string;battery:number;sourceName:string}|undefined,blackMageState=initialBlackMageState(),darkArts=false;
   const resolveScheduled=(until:number)=>{
     let expected=0,simulated=0,potency=0;scheduled.sort((a,b)=>a.time-b.time);
     while(scheduled.length&&scheduled[0].time<=until){
@@ -85,7 +88,8 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
     const ogcdUnlock=Math.round((row.time+(adjustedCast>0?adjustedCast*.8:0)+ANIMATION_LOCK)*1000)/1000;
     const prepare=row.actionId!==null&&isSummonerPetCommand(job,row.actionId)?actionReady+PET_COMMAND_DELAY:actionReady;
     const damageEvent=row.modifier==="delay"||row.modifier==="downtime"?row.time+Math.max(0,row.modifierValue):actionReady;
-    while(nextMpTick<=actionReady){mp=Math.min(10000,mp+200);nextMpTick+=3}
+    while(nextMpTick<=actionReady){if(!(job==="BLM"&&blackMageState.element==="fire"&&nextMpTick<blackMageState.expires))mp=Math.min(10000,mp+200);nextMpTick+=3}
+    for(const effect of activeMpEffects){while(effect.tickAmount&&effect.nextTick!==undefined&&effect.nextTick<=actionReady&&effect.nextTick<=effect.ends){mp=Math.min(10000,mp+effect.tickAmount);effect.nextTick+=(effect.tickInterval||3)}}
     const detonatedStar=row.actionId===SPECIAL_ACTION_IDS.stellarDetonation?starState:undefined;
     if(detonatedStar){for(let index=scheduled.length-1;index>=0;index--)if(scheduled[index].group===detonatedStar.group)scheduled.splice(index,1);starState=undefined}
     if(row.actionId===SPECIAL_ACTION_IDS.queenOverdrive&&queenState){
@@ -104,7 +108,19 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
       activeBuffs.push({sourceActionId:-1,duration:30,mainStatPercent:Math.max(0,stats.potionPercent)/100,mainStatCap:Math.max(0,stats.potionCap),starts:row.time,ends:row.time+30});
       nextOgcd=Math.max(nextOgcd,row.time+ANIMATION_LOCK);
     }else if(row.actionId!==null){
-      mp=Math.max(0,mp-Math.max(0,row.mpCost||0));
+      if(job==="BLM"){
+        const result=resolveBlackMageMp(blackMageState,row.actionId,actionReady,row.aspectId||0,row.mpCost||0,mp);blackMageState=result.state;mp=result.mp;
+      }else{
+        let cost=Math.max(0,row.mpCost||0);
+        if(stats.ignoreMpCosts&&["WHM","SCH","AST","SGE","SMN","RDM","PCT"].includes(job))cost=0;
+        if(darkArts&&DARK_ARTS_SPENDERS.has(row.actionId)){cost=0;darkArts=false}
+        const free=activeMpEffects.find(effect=>cost>0&&actionReady>=effect.starts&&actionReady<effect.ends&&(effect.remainingStacks===undefined||effect.remainingStacks>0)&&effect.nullifyCost&&(!effect.include||effect.include.includes(row.actionId))&&(!effect.lanes||effect.lanes.includes(row.lane)));
+        if(free){cost=0;if(free.remainingStacks!==undefined)free.remainingStacks=Math.max(0,free.remainingStacks-1)}
+        mp=Math.max(0,mp-cost);
+        for(const effect of activeMpEffects.filter(item=>item.restoreOnUse&&actionReady>=item.starts&&actionReady<item.ends&&(item.remainingStacks===undefined||item.remainingStacks>0)&&(!item.include||item.include.includes(row.actionId))&&(!item.lanes||item.lanes.includes(row.lane)))){mp=Math.min(10000,mp+(effect.restoreOnUse||0));if(effect.remainingStacks!==undefined)effect.remainingStacks=Math.max(0,effect.remainingStacks-1)}
+        const mpRule=MP_RESOURCE_CONFIGS[job]?.actions[row.actionId];
+        if(mpRule&&(!mpRule.requiresCombo||comboSucceeded)){const restored=mpRule.fullRestore?10000-mp:(mpRule.restore||0)+Math.floor(10000*(mpRule.restorePercent||0)/100);mp=Math.min(10000,mp+Math.max(0,restored));if(mpRule.grantsDarkArts)darkArts=true}
+      }
       if(row.actionId===SPECIAL_ACTION_IDS.stellarDetonation)effectivePotency=detonatedStar?(damageEvent-detonatedStar.placedAt>=EARTHLY_STAR.growAfter?EARTHLY_STAR.largePotency:EARTHLY_STAR.smallPotency):0;
       else if(isSpecialControlAction(row.actionId))effectivePotency=0;
       const buffs=activeBuffs.filter(buff=>prepare>=buff.starts&&prepare<buff.ends&&applies(buff,row.actionId,row.attackTypeId,row.lane));
@@ -129,7 +145,7 @@ export function calculateDamage<T extends EngineRow>(rows:T[],stats:EngineStats,
       if(row.actionId===SPECIAL_ACTION_IDS.automatonQueen){const battery=clamp(Math.round(row.specialValue??100),QUEEN.minBattery,QUEEN.maxBattery),group=`queen:${row.id}`;queenState={group,battery,sourceName:row.name};for(const [index,attack] of queenAttacks(stats.level,battery).entries())scheduled.push({id:`${group}:${index}`,group,time:damageEvent+attack.offset,potency:attack.potency,sourceName:row.name,actionId:row.actionId,phase:attack.phase})}
       for(const buff of executionBuffs)if(buff.remainingStacks!==undefined&&(buff.haste||(buff.consumeOnUse&&effectivePotency>0))&&applies(buff,row.actionId,row.attackTypeId,row.lane))buff.remainingStacks=Math.max(0,buff.remainingStacks-1);
       for(const buff of (config.buffs||[]).filter(rule=>rule.sourceActionId===row.actionId&&(!rule.requiresCombo||comboSucceeded)&&(!rule.requiresSelfTarget||row.targetSelf===true))){const starts=damageEvent+(buff.activationDelay||0);if(buff.extendExistingKey){const target=activeBuffs.find(item=>item.key===buff.extendExistingKey&&starts>=item.starts&&starts<item.ends);if(target)target.ends=Math.min(starts+(buff.maxDuration||Infinity),target.ends+(buff.extendBy||0));continue}const key=buff.key||`action:${buff.sourceActionId}`,existing=activeBuffs.find(item=>(item.key||`action:${item.sourceActionId}`)===key);if(existing){existing.starts=starts;existing.ends=buff.extendDuration?Math.min(starts+(buff.maxDuration||buff.duration),Math.max(existing.ends,starts)+buff.duration):starts+buff.duration;existing.remainingStacks=buff.stacks}else activeBuffs.push({...buff,key,starts,ends:starts+buff.duration,remainingStacks:buff.stacks})}
-      if(job==="BLM")blackMageState=advanceBlackMageState(blackMageState,row.actionId,actionReady);
+      for(const effect of [...COMMON_MP_EFFECTS,...(MP_RESOURCE_CONFIGS[job]?.effects||[])].filter(rule=>rule.sourceActionId===row.actionId)){const starts=actionReady,existing=activeMpEffects.find(item=>item.key===effect.key),nextTick=effect.tickAmount?(Math.floor(starts/(effect.tickInterval||3))+1)*(effect.tickInterval||3):undefined;if(existing)Object.assign(existing,effect,{starts,ends:starts+effect.duration,remainingStacks:effect.stacks,nextTick});else activeMpEffects.push({...effect,starts,ends:starts+effect.duration,remainingStacks:effect.stacks,nextTick})}
       if(row.lane==="gcd"){if(comboSucceeded){comboActionId=row.actionId;comboExpires=actionReady+30}else if(!row.preservesCombo){if(row.comboFromActionId){comboActionId=null;comboExpires=-Infinity}else{comboActionId=row.actionId;comboExpires=actionReady+30}}}
     }
     let aaDamage=0,aaSim=0;

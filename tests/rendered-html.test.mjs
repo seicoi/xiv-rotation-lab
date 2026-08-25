@@ -140,6 +140,9 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(page, /バフ・固有仕様/);
   assert.match(actionRoute, /PrimaryCostType,PrimaryCostValue/);
   assert.match(actionRoute, /mpCost=Number\(f\.PrimaryCostType\)===3/);
+  assert.match(actionRoute, /adjustedActionMpCost\(job,level,action\.mpCost\)/);
+  assert.match(page, /MP回復・消費変更/);
+  assert.match(page, /MP消費を無効化/);
   assert.match(engine, /activeBuffs:EngineBuffSnapshot\[\]/);
   assert.match(engine, /while\(nextMpTick<=actionReady\)/);
   assert.match(page, /onPointerDown=\{event=>startDrag\(event,state\.id\)\}/);
