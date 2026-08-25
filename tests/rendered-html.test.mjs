@@ -135,6 +135,13 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(engine, /comboExpires=actionReady\+30/);
   assert.match(page, /migrateDeveloperConfig/);
   assert.match(page, /<RecastTracker key=\{job\} states=\{recastStates\}/);
+  assert.match(page, /<CombatStateMonitor key=\{job\} row=\{last\}/);
+  assert.match(page, /ジョブ設定/);
+  assert.match(page, /バフ・固有仕様/);
+  assert.match(actionRoute, /PrimaryCostType,PrimaryCostValue/);
+  assert.match(actionRoute, /mpCost=Number\(f\.PrimaryCostType\)===3/);
+  assert.match(engine, /activeBuffs:EngineBuffSnapshot\[\]/);
+  assert.match(engine, /while\(nextMpTick<=actionReady\)/);
   assert.match(page, /onPointerDown=\{event=>startDrag\(event,state\.id\)\}/);
   assert.match(page, /aria-controls="recast-display-manager"/);
   assert.doesNotMatch(page, /<article draggable onDragStart=\{\(\)=>setDragging\(String\(state\.id\)\)\}/);
