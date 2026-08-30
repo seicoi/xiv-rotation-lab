@@ -160,7 +160,6 @@ button:disabled { cursor: not-allowed; }
 }
 .image-export-button:hover { border-color: var(--blue); background: rgba(88, 191, 255, .14); color: var(--ink); }
 .image-export-button:disabled { opacity: .35; }
-.dps-summary .image-export-button.compact { position: absolute; right: 16px; bottom: 14px; min-height: 28px; padding: 5px 8px; font-size: 8px; }
 .chart-legend div { color: var(--muted); font-size: 10px; }
 
 .timeline-workbench, .library-page, .analysis-page, .database-page { margin: 20px clamp(18px, 3vw, 44px) 0; }
@@ -249,7 +248,12 @@ button:disabled { cursor: not-allowed; }
 .analysis-table-wrap, .config-table-wrap, .database-table-wrap { border: 1px solid var(--line); border-radius: var(--radius-md); }
 .analysis-table th, .config-table th, .database-table th { background: #0d130f; color: var(--muted); }
 .analysis-table tr:hover td, .config-table tr:hover td, .database-table tr:hover td { background: var(--surface-3); }
-.distribution-chart, .distribution-stats div, .formula-grid > div { border-color: var(--line); border-radius: var(--radius-md); background: #0d130f; }
+.distribution-layout { grid-template-columns: minmax(0, 2.4fr) minmax(170px, .85fr) minmax(270px, 1fr); gap: 12px; }
+.distribution-chart { height: 260px; }
+.distribution-chart, .expected-dps-card, .distribution-stats div, .formula-grid > div { border-color: var(--line); border-radius: var(--radius-md); background: #0d130f; }
+.expected-dps-card { display: flex; min-height: 260px; align-items: center; justify-content: center; flex-direction: column; border: 1px solid var(--line); text-align: center; }
+.expected-dps-card small { color: var(--muted); font: 10px monospace; letter-spacing: .08em; }
+.expected-dps-card b { margin-top: 14px; color: var(--ink); font: 500 clamp(30px, 3vw, 46px) monospace; }
 .distribution-stats b { color: var(--green); }
 .formula-grid > div { padding: 16px; }
 
@@ -280,6 +284,8 @@ footer { margin: 0 clamp(18px, 3vw, 44px); color: var(--subtle); }
   .timeline-main { height: 72vh; }
   .analysis-strip { grid-template-columns: minmax(180px,.7fr) 1.3fr; }
   .analysis-strip .breakdown-card { grid-column: 1 / -1; height: 132px; }
+  .distribution-layout { grid-template-columns: minmax(0, 1.8fr) minmax(170px, .7fr); }
+  .distribution-stats { grid-column: 1 / -1; grid-template-columns: repeat(4, 1fr); }
 }
 
 @media (max-width: 850px) {
@@ -295,6 +301,9 @@ footer { margin: 0 clamp(18px, 3vw, 44px); color: var(--subtle); }
   .action-dock { height: 450px; }
   .library-page { grid-template-columns: 1fr; }
   .rotation-library { position: static; max-height: none; }
+  .distribution-layout { grid-template-columns: 1fr; }
+  .distribution-stats { grid-column: auto; grid-template-columns: repeat(2, 1fr); }
+  .expected-dps-card { min-height: 150px; }
 }
 
 @media (max-width: 600px) {

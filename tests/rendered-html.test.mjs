@@ -166,9 +166,15 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.match(page, /上書き保存/);
   assert.match(page, /ローテーション\$\{index\}/);
   assert.doesNotMatch(page, /本番回し|比較案/);
-  assert.match(page, /exportDpsSummaryImage/);
-  assert.match(page, /exportSimulationDpsImage/);
+  assert.doesNotMatch(page, /exportDpsSummaryImage/);
+  assert.doesNotMatch(page, /exportSimulationDpsImage/);
+  assert.match(page, /exportAnalysisImage/);
+  assert.match(page, /className="expected-dps-card"/);
+  assert.doesNotMatch(page, /image-export-button compact/);
   assert.ok(page.indexOf('className="analysis-card simulation-distribution-card"') < page.indexOf('className="analysis-card simulation-settings"'));
+  const timelineActions = page.slice(page.indexOf('className="timeline-actions"'), page.indexOf('</div><label>', page.indexOf('className="timeline-actions"')));
+  assert.ok(timelineActions.indexOf("t.undo") < timelineActions.indexOf("t.clear"));
+  assert.ok(timelineActions.indexOf("t.clear") < timelineActions.indexOf('className="timeline-save"'));
 
   // Post-stat-squish pet ratios stay separate from the historical 5.x values.
   assert.match(pets, /DRK:.*numerator:80,denominator:86.*useNonTankAttack:true,provisional:true/s);
