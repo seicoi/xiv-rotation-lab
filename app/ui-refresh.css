@@ -145,8 +145,22 @@ button:disabled { cursor: not-allowed; }
 }
 .analysis-strip article { height: 154px; padding: 18px 22px; }
 .analysis-strip article > span { color: var(--muted); font-size: 10px; font-weight: 600; }
+.dps-summary { position: relative; }
 .dps-summary strong { font-size: clamp(34px, 3.2vw, 48px); letter-spacing: -.06em; }
 .dps-summary small { color: var(--muted); font-size: 10px; }
+.image-export-button {
+  min-height: 34px;
+  padding: 8px 12px;
+  border: 1px solid rgba(88, 191, 255, .44);
+  border-radius: var(--radius-sm);
+  background: rgba(88, 191, 255, .08);
+  color: var(--blue);
+  font-size: 9px;
+  font-weight: 700;
+}
+.image-export-button:hover { border-color: var(--blue); background: rgba(88, 191, 255, .14); color: var(--ink); }
+.image-export-button:disabled { opacity: .35; }
+.dps-summary .image-export-button.compact { position: absolute; right: 16px; bottom: 14px; min-height: 28px; padding: 5px 8px; font-size: 8px; }
 .chart-legend div { color: var(--muted); font-size: 10px; }
 
 .timeline-workbench, .library-page, .analysis-page, .database-page { margin: 20px clamp(18px, 3vw, 44px) 0; }
@@ -189,6 +203,8 @@ button:disabled { cursor: not-allowed; }
 .system-toolbar { min-height: 54px; padding: 10px 14px; }
 .modifier-controls button, .timeline-actions button { min-height: 34px; border-radius: var(--radius-sm); }
 .modifier-controls button:hover, .timeline-actions button:hover { border-color: var(--green); color: var(--green); }
+.timeline-actions .timeline-save { border-color: rgba(88, 191, 255, .44); background: rgba(88, 191, 255, .08); color: var(--blue); }
+.timeline-actions .timeline-save:hover { border-color: var(--blue); color: var(--ink); }
 .recast-tracker { position: relative; z-index: 5; overflow: visible; padding: 10px 14px; }
 .recast-label { position: relative; }
 .recast-label button { margin-top: 3px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--blue); font: 7px monospace; }
@@ -228,6 +244,8 @@ button:disabled { cursor: not-allowed; }
 .analysis-page, .database-page, .library-content { gap: 16px; }
 .analysis-card, .database-card { padding: clamp(18px, 2vw, 26px); }
 .section-title h2, .database-heading h2, .library-intro h2 { color: var(--ink); font-size: 20px; letter-spacing: -.02em; }
+.analysis-heading-actions { display: flex; align-items: center; gap: 10px; }
+.analysis-heading-actions > span { color: var(--muted); font: 10px monospace; white-space: nowrap; }
 .analysis-table-wrap, .config-table-wrap, .database-table-wrap { border: 1px solid var(--line); border-radius: var(--radius-md); }
 .analysis-table th, .config-table th, .database-table th { background: #0d130f; color: var(--muted); }
 .analysis-table tr:hover td, .config-table tr:hover td, .database-table tr:hover td { background: var(--surface-3); }
