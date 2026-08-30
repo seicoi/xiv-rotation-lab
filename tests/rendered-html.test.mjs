@@ -169,7 +169,9 @@ test("keeps the Allagan Studies damage and timing invariants explicit", async ()
   assert.doesNotMatch(page, /exportDpsSummaryImage/);
   assert.doesNotMatch(page, /exportSimulationDpsImage/);
   assert.match(page, /exportAnalysisImage/);
-  assert.match(page, /className="expected-dps-card"/);
+  assert.match(page, /className="dps-stat-card"/);
+  assert.match(page, /<small>DPS<\/small>/);
+  assert.doesNotMatch(page, /期待値DPS|Expected DPS/);
   assert.doesNotMatch(page, /image-export-button compact/);
   assert.ok(page.indexOf('className="analysis-card simulation-distribution-card"') < page.indexOf('className="analysis-card simulation-settings"'));
   const timelineActions = page.slice(page.indexOf('className="timeline-actions"'), page.indexOf('</div><label>', page.indexOf('className="timeline-actions"')));
