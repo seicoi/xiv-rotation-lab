@@ -4,6 +4,7 @@ import {calculateDamage} from "../app/damage-engine";
 import {calculateRecastState,hasIndividualRecast} from "../app/recast-timer";
 import {actionMpCostFromFields,adjustedActionMpCost} from "../app/calculation/mp-config";
 import {calculateJobGauges,extractGaugeEffects} from "../app/calculation/job-gauges";
+import {JOB_CONFIGS} from "../app/calculation/job-configs";
 
 const stats={level:100,weapon:152,aaInterval:2.24,aaSpeed:420,main:5857,aaMain:440,crit:3242,dh:1230,det:2883,speed:420,tenacity:420,gcd:2.5,potionPercent:10,potionCap:392,simulationIterations:1};
 const base={id:"",name:"",lane:"gcd" as const,potency:0,cast:0,recast:2.5,gcdRecast:2.5,modifier:"none" as const,modifierValue:0};
@@ -22,6 +23,40 @@ test("Royal Authority grants one instant 500-potency Holy Spirit",()=>{
   assert.equal(holy.nextOgcd,8.14);
   assert.equal(holy.sumPotency,1510);
   assert.equal(holy.aaCount,4);
+  const second=calculateDamage([...rows,{...rows[3],id:"5",time:10.02}],stats,"PLD",{},{simulate:false}).at(-1)!;
+  assert.equal(second.potency,400);
+  assert.equal(second.effectiveCast,1.5);
+  assert.equal(second.activeBuffs.some(buff=>buff.key==="divine-might"),false);
+});
+
+test("every configured consumable damage buff stops affecting attacks after its last stack",()=>{
+  for(const [job,config] of Object.entries(JOB_CONFIGS))for(const rule of config.buffs.filter(buff=>buff.consumeOnUse&&buff.stacks)){
+    const actionId=rule.include?.[0]??9;
+    const action={...base,name:"Probe",actionId,potency:100,cast:0};
+    const rows=[{...base,id:"source",name:"Buff",lane:"ability" as const,actionId:rule.sourceActionId,time:0},...Array.from({length:rule.stacks!+1},(_,i)=>({...action,id:`attack-${i}`,time:.7+i*.7}))];
+    const isolated={...rule,requiresCombo:false};
+    const result=calculateDamage(rows,stats,job,{jobs:{[job]:{buffs:[isolated],actions:{}}}},{simulate:false});
+    const baseline=calculateDamage([{...action,id:"baseline",time:result.at(-1)!.time}],stats,job,{jobs:{[job]:{buffs:[],actions:{}}}},{simulate:false})[0];
+    assert.ok(result[1].rowDamage>baseline.rowDamage,`${job}/${rule.sourceActionId}: buff must apply`);
+    assert.equal(result.at(-1)!.rowDamage,baseline.rowDamage,`${job}/${rule.sourceActionId}: exhausted buff must not apply`);
+    assert.equal(result.at(-1)!.potency,baseline.potency);
+  }
+});
+
+test("Divine Might requires its combo, expires, and can be granted again after consumption",()=>{
+  const combo=(start:number)=>[
+    {...base,id:`${start}-1`,name:"Fast Blade",time:start,actionId:9,potency:220},
+    {...base,id:`${start}-2`,name:"Riot Blade",time:start+2.505,actionId:15,potency:170,comboPotency:330,comboFromActionId:9},
+    {...base,id:`${start}-3`,name:"Royal Authority",time:start+5.01,actionId:3539,potency:200,comboPotency:460,comboFromActionId:15},
+  ];
+  const holy=(time:number)=>({...base,id:`holy-${time}`,name:"Holy Spirit",time,actionId:7384,potency:400,cast:1.5,preservesCombo:true});
+  for(const rows of [[combo(0)[2],holy(8)],[...combo(0),holy(35.01)]]){
+    const last=calculateDamage(rows,stats,"PLD",{},{simulate:false}).at(-1)!;
+    assert.equal(last.potency,400);
+    assert.equal(last.effectiveCast,1.5);
+  }
+  const result=calculateDamage([...combo(0),holy(8),holy(11),...combo(14),holy(22),holy(25)],stats,"PLD",{},{simulate:false});
+  assert.deepEqual(result.filter(row=>row.actionId===7384).map(row=>[row.potency,row.effectiveCast]),[[500,0],[400,1.5],[500,0],[400,1.5]]);
 });
 
 test("cast actions unlock oGCD after 80 percent of cast plus 0.625 seconds",()=>{
