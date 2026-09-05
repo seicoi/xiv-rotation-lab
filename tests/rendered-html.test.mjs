@@ -30,6 +30,9 @@ test("server-renders XIV Rotation Lab", async () => {
 
   const html = await response.text();
   assert.match(html, /<title>XIV Rotation Lab<\/title>/i);
+  assert.match(html, /property="og:image" content="[^"]*\/og\.png\?v=20260905"/);
+  assert.match(html, /name="twitter:image" content="[^"]*\/og\.png\?v=20260905"/);
+  assert.match(html, /name="twitter:card" content="summary_large_image"/);
   assert.match(html, /タイムライン/);
   assert.match(html, /データベース/);
   assert.doesNotMatch(html, /FFLogs|XIVAPI|イベントログ|戦闘レポート|アクションDB|ACTION DATABASE|ID \d+/i);
