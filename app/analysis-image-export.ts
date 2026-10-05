@@ -2,7 +2,7 @@ type DpsPoint={damageEvent:number;dps:number};
 type DamageItem={name:string;value:number};
 type SimulationSummary={samples:number[];minimum:number;median:number;mean:number;maximum:number};
 
-const WIDTH=1800,HEIGHT=1060,BACKGROUND="#0a0f0c",PANEL="#111814",LINE="#263740",BLUE="#58bfff",MUTED="#8f9991",TEXT="#eef4ef";
+const WIDTH=1800,HEIGHT=1060,BACKGROUND="#090e17",PANEL="#101824",LINE="#263549",BLUE="#82d1ff",MUTED="#a4b4c9",TEXT="#edf4ff";
 
 function canvas(){const element=document.createElement("canvas");element.width=WIDTH;element.height=HEIGHT;return element}
 function context(element:HTMLCanvasElement){const value=element.getContext("2d");if(!value)throw new Error("canvas unavailable");value.textBaseline="middle";return value}
